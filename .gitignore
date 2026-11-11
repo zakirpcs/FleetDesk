@@ -1,0 +1,20 @@
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Generated at build time from assets/js by backend/scripts/sync-shared.mjs
+backend/src/shared/
+
+# Release archives
+*.tar.gz
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

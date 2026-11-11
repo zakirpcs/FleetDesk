@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Fleet Desk</title>
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="34" height="34"><rect x="1" y="1" width="30" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 25 L14 7 M23 25 L18 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 10v2.5M16 15.5v2.5M16 21v2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span>
+          <span class="brand-name">Fleet Desk</span>
+          <span class="brand-sub">Car &amp; driver tracking</span>
+        </span>
+      </div>
+
+      <h1 class="login-title">Sign in</h1>
+      <p class="login-lede" id="lede">Use your work email address.</p>
+
+      <form id="loginForm" novalidate>
+        <div class="field full">
+          <label for="email">Email</label>
+          <input class="input" id="email" name="email" type="email" autocomplete="username" required autofocus spellcheck="false">
+        </div>
+        <div class="field full">
+          <label for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="callout bad" id="error" hidden role="alert"></div>
+        <button class="btn btn-primary login-submit" id="submit" type="submit">Sign in</button>
+      </form>
+
+      <div class="login-demo" id="demo" hidden></div>
+      <p class="login-foot">Trouble signing in? Ask the AGS team lead to check your account.</p>
+    </section>
+  </main>
+
+  <script type="module" src="assets/js/login.js"></script>
+</body>
+</html>

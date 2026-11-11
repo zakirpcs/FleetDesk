@@ -1,0 +1,103 @@
+# Fleet Desk, containerised: frontend (Nginx) → backend (Node API) → database (PostgreSQL),
+# with a local mail catcher so the confirmation emails are visible without a real relay.
+#
+#   docker compose up -d --build     then open http://localhost:8080
+#
+# Settings live in .env (copy .env.example). The database and API are not published to
+# the outside world; everything reaches the API through the frontend's /api/ proxy.
+name: fleetdesk
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: fleetdesk-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fleetdesk}
+      POSTGRES_USER: ${POSTGRES_USER:-fleetdesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fleetdesk}
+      TZ: ${TZ:-Asia/Dhaka}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleetdesk} -d ${POSTGRES_DB:-fleetdesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [fleetdesk]
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: fleetdesk-api:1.0.0
+    container_name: fleetdesk-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      mail:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-fleetdesk}:${POSTGRES_PASSWORD:-fleetdesk}@db:5432/${POSTGRES_DB:-fleetdesk}
+      TZ: ${TZ:-Asia/Dhaka}
+      # 'password' = Fleet Desk's own sign-in page; 'proxy' = trust an authenticating
+      # proxy in front of it. See backend/src/auth.js.
+      AUTH_MODE: ${AUTH_MODE:-password}
+      SESSION_HOURS: ${SESSION_HOURS:-12}
+      # The sign-in page lists the sample accounts while this is on. Turn it off, and
+      # change the password, before anyone real uses this.
+      SHOW_DEMO_ACCOUNTS: ${SHOW_DEMO_ACCOUNTS:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-FleetDesk-2026}
+      # Set these to create your own team lead instead of the sample accounts.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Loads the sample fleet on first start only; it never overwrites existing data.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      SMTP_HOST: ${SMTP_HOST:-mail}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      MAIL_RETRY_SECONDS: ${MAIL_RETRY_SECONDS:-300}
+    # Published on loopback only, for curl and the smoke test. The browser does not use it.
+    ports:
+      - "127.0.0.1:${API_PORT:-8081}:8080"
+    networks:
+      fleetdesk:
+        aliases: [fleetdesk-api]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: fleetdesk-web:1.0.0
+    container_name: fleetdesk-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      # api = talk to the backend; mock = browser-only demo data, no backend needed.
+      FLEETDESK_MODE: ${FLEETDESK_MODE:-api}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    networks: [fleetdesk]
+
+  # Catches every outgoing email instead of delivering it. Web UI on http://localhost:8025.
+  # Point SMTP_HOST at your own relay and drop this service in production.
+  mail:
+    image: axllent/mailpit:latest
+    container_name: fleetdesk-mail
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      TZ: ${TZ:-Asia/Dhaka}
+    ports:
+      - "127.0.0.1:${MAIL_UI_PORT:-8025}:8025"
+    networks: [fleetdesk]
+
+volumes:
+  pgdata:
+
+networks:
+  fleetdesk:
+    driver: bridge

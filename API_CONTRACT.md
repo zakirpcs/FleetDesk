@@ -1,0 +1,140 @@
+# Fleet Desk: backend API contract
+
+The frontend calls everything through `assets/js/api.js`. With `<meta name="fleetdesk-mode" content="api">` in `index.html` — what the frontend container serves — it sends the requests below to `/api/v1`; with `content="mock"` the same calls are answered from the browser's own storage. Responses are JSON. Errors return `{ "message": "...", "details": {...} }` with a 4xx/5xx status; the UI shows `message` to the user as-is, so write it for end users.
+
+IDs are strings. Dates are `YYYY-MM-DD`, times `HH:MM` (24h, Asia/Dhaka), timestamps ISO 8601.
+
+## Reference implementation
+
+`backend/` implements all of this; `docker compose up -d --build` runs it with PostgreSQL (see the README). If you are replacing it with another stack, these are the files to read against each section below:
+
+| This document | Implementation |
+|---|---|
+| Authentication and roles | `backend/src/auth.js`, `backend/src/sessions.js`, `backend/src/password.js` |
+| Sign-in and accounts | `backend/src/routes/auth.js`, `backend/src/routes/users.js` |
+| Generic CRUD, entities, validation | `backend/src/schema.js` (columns and types), `backend/src/store.js` (rules), `backend/src/routes/collections.js` |
+| Requisition workflow | `backend/src/routes/requisitions.js` |
+| Confirmation email fields | `assets/js/email.js`, sent and retried by `backend/src/mailer.js` |
+| Business rules for reports | `assets/js/calc.js`, exposed by `backend/src/routes/reports.js` |
+| Tables, constraints, indexes | `db/migrations/*.sql`, applied at startup by `backend/src/migrate.js` |
+
+`backend/test/smoke.js` checks the whole contract against a running API, including the status codes below.
+
+## Authentication and roles
+
+People sign in on `login.html`, which posts to `/auth/login` and gets back an HttpOnly, SameSite=Lax session cookie; the session itself lives in the `sessions` table. Every endpoint except `/auth/*` answers 401 without one, and the frontend sends anyone who gets a 401 to the sign-in page.
+
+With `AUTH_MODE=proxy` there is no sign-in page: an authenticating proxy in front passes the identity in (`X-Forwarded-Email`, `X-Forwarded-Groups`, for example LDAP/FreeIPA groups mapped to roles) and Fleet Desk stops managing passwords.
+
+The role on the account decides what is allowed:
+
+| Role | Can do |
+|---|---|
+| `employee` | Submit a requisition, see and cancel own pending requests |
+| `ags` | Everything in inventory, logbook, fuel, reports; view requests (no approve/reject) |
+| `lead` | Everything `ags` can, plus approve/reject requests and change settings |
+
+`GET /api/v1/me` → `{ id, name, designation, email, role, mustChangePassword, authMode }` so the form can prefill and the nav can be built.
+
+### Sign-in and accounts
+
+| Method | Path | Who | Body | Effect |
+|---|---|---|---|---|
+| GET | `/auth/info` | anyone | | `{ mode, signedIn, demoAccounts, demoPassword }` for the sign-in page |
+| POST | `/auth/login` | anyone | `email, password` | Starts a session and sets the cookie. 401 on a bad pair (the same message either way), 403 for a disabled account, 429 after `LOGIN_MAX_FAILURES` tries |
+| POST | `/auth/logout` | signed in | | Ends this session, clears the cookie → 204 |
+| POST | `/auth/password` | signed in | `currentPassword, newPassword` | Changes your own password and signs out your other sessions |
+| PATCH | `/auth/profile` | signed in | `name, designation, mobile` | Your own details |
+| GET | `/auth/sessions` | signed in | | Where you are signed in |
+| POST | `/auth/sessions/revoke` | signed in | | Ends your other sessions |
+| GET | `/users` | lead | | All accounts, without password hashes |
+| POST | `/users` | lead | `name, email, designation?, mobile?, role, password?` | Creates the account; returns `temporaryPassword` once if none was given |
+| PATCH | `/users/{id}` | lead | `name, designation, mobile, role, status` | 409 when it would remove the last active team lead or the caller's own access |
+| POST | `/users/{id}/password` | lead | | New one-time password, returned once; signs that person out everywhere |
+| DELETE | `/users/{id}` | lead | | 409 if they have car requests on record — disable the account instead |
+
+**users**: `id, email (unique), name, designation, mobile, role (employee | ags | lead), status (Active | Disabled), mustChangePassword, createdAt, lastLoginAt`
+
+Passwords are stored as scrypt hashes (`backend/src/password.js`) and never returned. A new or reset account carries `mustChangePassword`, and while it is set every endpoint other than `/me` and `/auth/*` answers 403 with `details.mustChangePassword` so the UI can send the person to change it. Disabling an account, changing its role or resetting its password deletes that user's sessions immediately.
+
+## Generic CRUD
+
+For each collection `drivers`, `cars`, `cards`, `trips`, `fuel`:
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/{collection}` | | array |
+| GET | `/{collection}/{id}` | | object |
+| POST | `/{collection}` | object without `id` | created object |
+| PATCH | `/{collection}/{id}` | changed fields | updated object |
+| DELETE | `/{collection}/{id}` | | 204 |
+
+`requisitions` and `outbox` support GET only; they change through the actions below.
+
+The views compute reports on the client from full lists. When data grows, add query filters (`?from=&to=&carId=`) and move to the report endpoints at the end of this file, which the backend already serves.
+
+Reads are scoped to the caller: `employee` gets only their own requisitions, the emails about them, and the driver and car assigned to them; `cards`, `trips` and `fuel` are refused with 403.
+
+## Entities
+
+**drivers**: `id, empId (unique), name, mobile, licenseNo (unique), licenseExpiry, joinDate, status (Active | On leave | Inactive), otRate (BDT/hour), address`
+
+**cars**: `id, regNo (unique, e.g. "DHAKA METRO-GA 27-4581"), make, model, year, seats, fuelType (Octane | Petrol | Diesel | CNG), tankCapacity, odometer, ownership (Owned | Rented | Leased), driverId (regular driver, nullable), status (Available | On trip | Maintenance | Retired), fitnessExpiry, taxTokenExpiry, insuranceExpiry`
+
+**cards** (payment/fuel cards): `id, provider, cardType (Fleet card | Bank card | Prepaid card), last4 (exactly 4 digits), expiry (YYYY-MM), carId (nullable = pool card), monthlyLimit (BDT), issuedOn, status (Active | Blocked | Closed), notes`
+Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `last4` that is not 4 digits.
+
+**trips** (daily logbook, one row per car per day): `id, date, carId, driverId, reqId (nullable), startTime, endTime, startOdo, endOdo, from, to, purpose`
+
+**fuel**: `id, date, time, carId, driverId, cardId (nullable = cash), payment (Card | Cash, derived), fuelType, qty, unitPrice, amount (derived = qty × unitPrice, 2 dp), odometer, station, receiptNo`
+
+**requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks`
+
+**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection), reqId, to, cc, from, subject, html`
+
+**settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }`
+
+## Validation the server must enforce
+
+- Unique: `drivers.empId`, `drivers.licenseNo`, `cars.regNo` → 409
+- `trips`: `endOdo ≥ startOdo`; `endTime > startTime`; one entry per car per date → 409
+- `fuel`: `qty > 0`; the card, if given, must be `Active` → 400
+- After a trip or fuel write, raise `cars.odometer` to the new reading if it is higher
+- DELETE on a driver, car or card that is referenced by trips, fuel or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
+
+## Requisition workflow
+
+| Method | Path | Who | Body | Effect |
+|---|---|---|---|---|
+| POST | `/requisitions` | any | `name, designation, email, requiredDate, startTime, startPoint, destination, reason` | Creates `Pending`, assigns `reqNo`, emails the team lead (`notification`) |
+| POST | `/requisitions/{id}/approve` | lead | `driverId, carId, remarks?` | Must be `Pending`. Rejects with 409 if the driver or car has another `Approved` request on the same date within 3 hours. Sets `Approved`, `reviewedAt/By`, sends the **confirmation** email to the requester (cc team lead) |
+| POST | `/requisitions/{id}/reject` | lead | `remarks` (required) | Must be `Pending`. Sets `Rejected`, sends the **rejection** email |
+| POST | `/requisitions/{id}/cancel` | requester | | Only while `Pending` |
+| GET | `/requisitions/conflicts?date=&startTime=&driverId=&carId=&excludeId=` | lead | | Approved requests that would clash |
+
+`requiredDate` cannot be in the past. `GET /requisitions` returns only the caller's own requisitions when the role is `employee` — filtered by the session email, so no extra parameter is needed — and `cancel` refuses a request belonging to someone else.
+
+### Confirmation email fields
+
+Driver name, Car number, Driver mobile no., Start point, Destination, Request date & time (= `requiredDate` + `startTime`). The template is in `assets/js/email.js`; render the same on the server and send through the SMTP relay. Write every message to `outbox` with its delivery status, and retry `Failed` ones.
+
+## Business rules for reports
+
+**Running km** = `endOdo − startOdo` per logbook entry, summed by car per week (weeks start on `settings.weekStartDay`) or per calendar month.
+
+**Fuel consumption** per car per month = km run ÷ fuel quantity loaded in that month (km/L, or km/m³ for CNG). Flag when it is more than 15% below the car's average over the previous three months.
+
+**Overtime** per driver per day, from logbook entries:
+1. Duty window = earliest `startTime` to latest `endTime` across that driver's entries for the date.
+2. Working day: early = time before `shiftStart`, late = time after `shiftEnd`; each counts only if it is more than `graceMinutes`. OT = early + late.
+3. Weekend day (`weekendDays`) or a date in `holidays`: the whole duty window is OT, paid at `weekendMultiplier`.
+4. Round OT down to `roundingMinutes`. Amount = OT hours × driver `otRate` × multiplier.
+
+Reference implementation: `assets/js/calc.js`.
+
+## Optional report endpoints (when lists get large)
+
+- `GET /reports/running-km?period=week|month&from=&to=` → `[{ carId, bucket, km }]`
+- `GET /reports/fuel-consumption?month=YYYY-MM` → `[{ carId, km, qty, amount, loads, avg, prevAvg }]`
+- `GET /reports/overtime?month=YYYY-MM` → `[{ driverId, date, start, end, dutyMin, otMin, offDay, amount }]`
+- `GET /reports/card-usage?from=&to=` → `[{ cardId, loads, qty, amount }]`

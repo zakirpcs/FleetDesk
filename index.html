@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fleet Desk · Car & Driver Tracking</title>
+  <!-- mock = data in this browser, api = the REST backend at /api/v1.
+       The frontend container rewrites this to "api" (FLEETDESK_MODE). -->
+  <meta name="fleetdesk-mode" content="mock">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brandbar">
+        <div class="bar-inner">
+          <a class="brand" href="#dashboard">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="30" height="30"><rect x="1" y="1" width="30" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 25 L14 7 M23 25 L18 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 10v2.5M16 15.5v2.5M16 21v2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <span>
+              <span class="brand-name">Fleet Desk</span>
+              <span class="brand-sub">Car &amp; driver tracking</span>
+            </span>
+          </a>
+          <div class="topbar-right">
+            <label class="role-switch" title="Demo only — with a sign-in in front, the role comes from the account">
+              <span>Viewing as</span>
+              <select id="roleSelect">
+                <option value="employee">Employee</option>
+                <option value="ags">AGS staff</option>
+                <option value="lead">AGS team lead</option>
+              </select>
+            </label>
+            <div class="user-menu" id="userMenu">
+              <button class="user-chip" id="userChip" type="button" aria-expanded="false" aria-controls="userPanel" aria-haspopup="true"></button>
+              <div class="user-panel" id="userPanel" hidden></div>
+            </div>
+            <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="menubar">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <nav class="menubar" id="menubar" aria-label="Main navigation">
+        <div class="bar-inner">
+          <div class="menu-items" id="menuInner"></div>
+          <div class="menu-search" role="search">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="globalSearch" type="search" placeholder="Search cars, drivers, requests"
+                   aria-label="Search Fleet Desk" autocomplete="off" spellcheck="false"
+                   role="combobox" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
+            <kbd class="search-key" aria-hidden="true">/</kbd>
+            <div class="search-panel" id="searchResults" role="listbox" aria-label="Search results" hidden></div>
+          </div>
+          <button class="menu-action" type="button" id="resetDemo" hidden title="Demo data is stored in this browser only">Reset demo data</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="main">
+      <div class="page-wrap">
+        <div class="page-head">
+          <div class="page-crumb" id="pageCrumb"></div>
+          <h1 class="page-title" id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="content" id="view" tabindex="-1"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <div id="modalRoot"></div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <div class="viz-tip" id="vizTip" hidden></div>
+
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
