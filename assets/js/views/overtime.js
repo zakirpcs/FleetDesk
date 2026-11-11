@@ -23,7 +23,7 @@ export async function render(el, ctx) {
     <div class="callout" style="margin-bottom:16px">
       Shift ${fmtTime(s.shiftStart)} to ${fmtTime(s.shiftEnd)} on working days. Time before or after the shift counts once it passes ${s.graceMinutes} minutes, rounded down to ${s.roundingMinutes}-minute steps.
       All duty on ${s.weekendDays.map((x) => DAY_NAMES[x]).join(' and ')}${s.holidays?.length ? ' and listed holidays' : ''} is overtime at ${s.weekendMultiplier}× the driver's rate.
-      ${ctx.can('approve') ? '<a href="#admin/settings">Change rules</a>' : ''}
+      ${ctx.can('approve') ? '<a href="#settings/overtime">Change rules</a>' : ''}
     </div>
     <div class="kpis" id="kpis"></div>
     <section class="panel" id="tbl"></section>`;

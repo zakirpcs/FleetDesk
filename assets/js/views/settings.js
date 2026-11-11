@@ -14,18 +14,33 @@ const SOURCE_NOTE = {
   none: 'No mail server is set up yet, so nothing can be sent. Messages wait in the email log until one is.',
 };
 
-export async function render(el) {
-  const s = await api.getSettings();
-  const section = (title, note, inner) => `<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h2>${esc(title)}</h2></div><div class="panel-body">${note ? `<p class="muted" style="margin:0 0 14px">${esc(note)}</p>` : ''}${inner}</div></section>`;
+// The sections of this page, in order. Exported so the search box can offer them.
+export const TABS = [
+  { id: 'approvals', title: 'Approvals and email' },
+  { id: 'overtime', title: 'Overtime rules' },
+  { id: 'mail', title: 'Mail server', backend: true },
+  { id: 'fuel', title: 'Fuel prices' },
+];
 
-  el.innerHTML = `<form id="sf" novalidate style="max-width:860px">
-    ${section('Approvals and email', 'New car requests are emailed to the team lead. Confirmations are sent from the sender address with the team lead in copy.', `<div class="form-grid">
+export async function render(el, ctx, subPath = '') {
+  const s = await api.getSettings();
+  const tabs = TABS.filter((t) => !(t.backend && CONFIG.USE_MOCK));
+  // One form across every tab: switching tab hides a section rather than redrawing it,
+  // so half-finished edits in one section survive a look at another.
+  const section = (id, title, note, inner) => `<section class="panel" data-tab="${id}" style="margin-bottom:16px"><div class="panel-head"><h2>${esc(title)}</h2></div><div class="panel-body">${note ? `<p class="muted" style="margin:0 0 14px">${esc(note)}</p>` : ''}${inner}</div></section>`;
+
+  el.innerHTML = `
+    <nav class="tabs" id="settingTabs" aria-label="Settings sections">
+      ${tabs.map((t) => `<button class="tab" type="button" data-go="${t.id}">${esc(t.title)}</button>`).join('')}
+    </nav>
+    <form id="sf" novalidate style="max-width:860px">
+    ${section('approvals', 'Approvals and email', 'New car requests are emailed to the team lead. Confirmations are sent from the sender address with the team lead in copy.', `<div class="form-grid">
       ${fieldHtml({ name: 'teamLeadName', label: 'Team lead name (email signature)', required: true }, s.teamLeadName)}
       ${fieldHtml({ name: 'teamLeadEmail', label: 'Team lead email', type: 'email', required: true }, s.teamLeadEmail)}
       ${fieldHtml({ name: 'senderEmail', label: 'Send emails from', type: 'email', required: true }, s.senderEmail)}
       ${fieldHtml({ name: 'orgName', label: 'Default start point', required: true, hint: 'Used to prefill logbook entries' }, s.orgName)}
     </div>`)}
-    ${section('Overtime rules', 'Overtime is worked out from each driver\'s duty start and end in the daily logbook.', `<div class="form-grid">
+    ${section('overtime', 'Overtime rules', 'Overtime is worked out from each driver\'s duty start and end in the daily logbook.', `<div class="form-grid">
       ${fieldHtml({ name: 'shiftStart', label: 'Shift starts', type: 'time', required: true }, s.shiftStart)}
       ${fieldHtml({ name: 'shiftEnd', label: 'Shift ends', type: 'time', required: true }, s.shiftEnd)}
       ${fieldHtml({ name: 'graceMinutes', label: 'Grace period (minutes)', type: 'number', min: 0, max: 120, required: true, hint: 'Extra time below this is not counted' }, s.graceMinutes)}
@@ -37,7 +52,7 @@ export async function render(el) {
       </fieldset>
       ${fieldHtml({ name: 'holidays', label: 'Public and office holidays', type: 'textarea', full: true, placeholder: '2026-12-16\n2026-12-25', hint: 'One date per line (YYYY-MM-DD). Duty on these dates is paid at the weekend multiplier.' }, (s.holidays || []).join('\n'))}
     </div>`)}
-    ${CONFIG.USE_MOCK ? '' : section('Mail server (SMTP)', 'How Fleet Desk sends the request, confirmation, rejection and cancellation emails.', `
+    ${CONFIG.USE_MOCK ? '' : section('mail', 'Mail server (SMTP)', 'How Fleet Desk sends the request, confirmation, rejection and cancellation emails.', `
       <div class="callout ${s.smtp?.source === 'none' ? 'warn' : ''}" style="margin:0 0 14px">${esc(SOURCE_NOTE[s.smtp?.source] || '')}${s.smtp?.source === 'environment' && s.smtp?.envHost ? ` <span class="muted">(${esc(s.smtp.envHost)})</span>` : ''}</div>
       <div class="form-grid">
         ${fieldHtml({ name: 'smtp_host', label: 'Server address', maxlength: 120, placeholder: 'smtp.company.com', hint: 'Leave empty to fall back to the container settings.' }, s.smtp?.host || '')}
@@ -52,7 +67,7 @@ export async function render(el) {
         <span class="muted" id="mailTestNote">Saves first, then sends to your own address.</span>
       </div>
       <div class="callout mt" id="mailTestResult" hidden></div>`)}
-    ${section('Fuel prices', 'Prefilled as the rate when a fuel load is recorded. The rate can still be changed on each load.', `<div class="form-grid">
+    ${section('fuel', 'Fuel prices', 'Prefilled as the rate when a fuel load is recorded. The rate can still be changed on each load.', `<div class="form-grid">
       ${['Octane', 'Petrol', 'Diesel'].map((f) => fieldHtml({ name: `fp_${f}`, label: `${f} (BDT per litre)`, type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices[f])).join('')}
       ${fieldHtml({ name: 'fp_CNG', label: 'CNG (BDT per m³)', type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices.CNG)}
     </div>`)}
@@ -60,16 +75,45 @@ export async function render(el) {
     <button class="btn btn-primary" type="submit">Save settings</button>
   </form>`;
 
+  // ---- tabs
+  const panels = [...el.querySelectorAll('[data-tab]')];
+  const buttons = [...el.querySelectorAll('[data-go]')];
+  let active = '';
+  function show(id, { remember = true } = {}) {
+    active = tabs.some((t) => t.id === id) ? id : tabs[0].id;
+    panels.forEach((x) => { x.hidden = x.dataset.tab !== active; });
+    buttons.forEach((b) => {
+      const on = b.dataset.go === active;
+      b.setAttribute('aria-current', on ? 'page' : 'false');
+      if (!on) b.removeAttribute('aria-current');
+    });
+    // Keep the address in step without reloading the page, so a tab can be linked to.
+    if (remember) history.replaceState(null, '', `#settings${active === tabs[0].id ? '' : `/${active}`}`);
+  }
+  el.querySelector('#settingTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]');
+    if (b) show(b.dataset.go);
+  });
+  show(subPath, { remember: false });
+
   const form = el.querySelector('#sf');
+  /** A problem in a section you cannot see is no use: open that tab first. */
+  const revealProblem = () => {
+    const bad = form.querySelector('.field.invalid');
+    const panel = bad?.closest('[data-tab]');
+    if (panel && panel.dataset.tab !== active) show(panel.dataset.tab);
+    bad?.querySelector('input, select, textarea')?.focus();
+  };
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = el.querySelector('#err'); err.hidden = true;
-    if (!checkForm(form)) return;
+    if (!checkForm(form)) return revealProblem();
     const v = readForm(form);
     const holidays = v.holidays.split(/\s+/).filter(Boolean);
     const bad = holidays.find((h) => !/^\d{4}-\d{2}-\d{2}$/.test(h));
-    if (bad) { err.textContent = `"${bad}" is not a date in YYYY-MM-DD format.`; err.hidden = false; return; }
-    if (v.shiftEnd <= v.shiftStart) { err.textContent = 'Shift must end after it starts.'; err.hidden = false; return; }
+    if (bad) { show('overtime'); err.textContent = `"${bad}" is not a date in YYYY-MM-DD format.`; err.hidden = false; return; }
+    if (v.shiftEnd <= v.shiftStart) { show('overtime'); err.textContent = 'Shift must end after it starts.'; err.hidden = false; return; }
     const smtp = CONFIG.USE_MOCK ? undefined : {
       host: v.smtp_host, port: Number(v.smtp_port), encryption: v.smtp_encryption,
       user: v.smtp_user, fromName: v.smtp_fromName,
@@ -91,7 +135,7 @@ export async function render(el) {
   el.querySelector('#mailTest')?.addEventListener('click', async (e) => {
     const box = el.querySelector('#mailTestResult');
     box.hidden = true;
-    if (!checkForm(form)) return;
+    if (!checkForm(form)) return revealProblem();
     e.target.disabled = true;
     e.target.textContent = 'Sending…';
     try {

@@ -2,7 +2,7 @@
 import { api, CONFIG, loadAll } from './api.js';
 import { esc, initials, byId, fmtDate, fmtTime, num, num1, bdt, unitOf } from './utils.js';
 import { toast, confirmDialog, closeAllModals, pill } from './ui.js';
-import { tabsFor as adminTabs } from './views/admin.js';
+import { TABS as settingsTabs } from './views/settings.js';
 
 const P = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const I = {
@@ -42,7 +42,9 @@ export const ROUTES = [
   { path: 'consumption', title: 'Fuel consumption', group: 'Reports', roles: STAFF, load: () => import('./views/consumption.js') },
   { path: 'overtime', title: 'Driver overtime', group: 'Reports', roles: STAFF, load: () => import('./views/overtime.js') },
   { path: 'assignments', title: 'Assignment history', group: 'Reports', roles: STAFF, load: () => import('./views/assignments.js') },
-  { path: 'admin', title: 'Admin', group: 'Admin', roles: STAFF, load: () => import('./views/admin.js'), icon: 'settings', tabbed: true },
+  { path: 'outbox', title: 'Email log', group: 'Admin', roles: STAFF, load: () => import('./views/outbox.js') },
+  { path: 'users', title: 'People and access', group: 'Admin', roles: ['lead'], load: () => import('./views/users.js'), icon: 'users', backend: true },
+  { path: 'settings', title: 'Settings', group: 'Admin', roles: ['lead'], load: () => import('./views/settings.js'), tabbed: true },
   // Reached from the user menu rather than the menu bar.
   { path: 'account', title: 'My account', group: 'Account', roles: ALL, load: () => import('./views/account.js'), icon: 'account', hidden: true, backend: true },
 ];
@@ -127,7 +129,7 @@ function renderUserMenu() {
       ${pill(ROLE_NAME[state.role] || state.role)}
     </div>
     ${signedIn ? `<a href="#account">${I.account}<span>My account</span></a>` : ''}
-    ${state.role === 'lead' && signedIn ? `<a href="#admin/users">${I.users}<span>People and access</span></a>` : ''}
+    ${state.role === 'lead' && signedIn ? `<a href="#users">${I.users}<span>People and access</span></a>` : ''}
     ${state.authMode === 'password' ? `<button type="button" id="signOut" class="danger">${I.signout}<span>Sign out</span></button>` : ''}
     ${state.authMode === 'proxy' ? '<p class="user-panel-note">Signed in with your company account.</p>' : ''}
     ${state.authMode === 'demo' ? '<p class="user-panel-note">Demo mode: pick a role with “Viewing as”. Sign-in needs the backend.</p>' : ''}`;
@@ -258,9 +260,9 @@ const pageItems = () => routesFor(state.role).flatMap((r) => {
     title: r.title, sub: r.group, terms: [r.title, r.group, r.path],
   };
   if (!r.tabbed) return [page];
-  return [page, ...adminTabs(state.role).map((t) => ({
-    type: 'Page', icon: t.path === 'users' ? 'users' : t.path, page: `${r.path}/${t.path}`, params: {},
-    title: t.title, sub: `${r.group} · ${r.title}`, terms: [t.title, t.path, r.group],
+  return [page, ...settingsTabs.map((t) => ({
+    type: 'Page', icon: r.icon || r.path, page: `${r.path}/${t.id}`, params: {},
+    title: t.title, sub: `${r.group} · ${r.title}`, terms: [t.title, t.id, r.title],
   }))];
 });
 
@@ -579,19 +581,12 @@ export function passwordChanged() {
 
 const currentPath = () => (location.hash.replace(/^#\/?/, '').split('?')[0] || '');
 const currentTop = () => currentPath().split('/')[0];
-const currentSub = () => currentPath().split('/').slice(1).join('/');
-// Where the admin pages used to live, so old links and bookmarks still work.
-const LEGACY = { settings: 'admin/settings', users: 'admin/users', outbox: 'admin/outbox' };
 const routeQuery = () => new URLSearchParams(location.hash.split('?')[1] || '');
 
 let renderSeq = 0;
 async function route() {
   const seq = ++renderSeq;
   let path = currentPath();
-  if (LEGACY[path]) {
-    history.replaceState(null, '', `#${LEGACY[path]}`);
-    path = LEGACY[path];
-  }
   const allowed = routesFor(state.role);
   // A temporary password has to be replaced before anything else is reachable.
   if (state.mustChangePassword && path !== 'account') {
