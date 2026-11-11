@@ -8,18 +8,65 @@ import nodemailer from 'nodemailer';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { uid } from './store.js';
+import { getSettings, mailPassword } from './settings.js';
 
-let transport;
-function getTransport() {
-  if (!config.smtp.host) return null;
-  transport ||= nodemailer.createTransport({
+/**
+ * Where the mail server details come from: the Settings page once a host has been
+ * saved there, otherwise whatever the container was started with. That way a fresh
+ * deployment can send before anyone signs in, and the team lead can change relay
+ * later without a redeploy.
+ */
+export async function resolveSmtp() {
+  const saved = (await getSettings()).smtp || {};
+  if (saved.host) {
+    return {
+      source: 'settings',
+      host: saved.host,
+      port: saved.port,
+      secure: saved.encryption === 'tls',
+      requireTLS: saved.encryption === 'starttls',
+      user: saved.user,
+      pass: await mailPassword(),
+      fromName: saved.fromName,
+    };
+  }
+  return {
+    source: config.smtp.host ? 'environment' : 'none',
     host: config.smtp.host,
     port: config.smtp.port,
     secure: config.smtp.secure,
-    auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
+    requireTLS: false,
+    user: config.smtp.user,
+    pass: config.smtp.pass,
+    fromName: '',
+  };
+}
+
+// One transport per distinct configuration; a change on the Settings page replaces it.
+let transport = null;
+let transportKey = '';
+export function buildTransport(smtp) {
+  return nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    requireTLS: smtp.requireTLS || undefined,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
   });
+}
+
+async function getTransport() {
+  const smtp = await resolveSmtp();
+  if (!smtp.host) return null;
+  const key = JSON.stringify([smtp.host, smtp.port, smtp.secure, smtp.requireTLS, smtp.user, smtp.pass.length]);
+  if (key !== transportKey) {
+    transport?.close?.();
+    transport = buildTransport(smtp);
+    transportKey = key;
+    console.log(`[mail] relay ${smtp.host}:${smtp.port} (${smtp.source}${smtp.user ? `, as ${smtp.user}` : ', no auth'})`);
+  }
   return transport;
 }
 
@@ -38,10 +85,10 @@ export async function queue(client, mail) {
 }
 
 async function send(mail) {
-  const tp = getTransport();
+  const tp = await getTransport();
   if (!tp) {
-    console.log(`[mail] SMTP_HOST not set — "${mail.subject}" stays queued for ${mail.to}`);
-    return { status: 'Queued', error: 'No mail relay configured yet' };
+    console.log(`[mail] no relay configured — "${mail.subject}" stays queued for ${mail.to}`);
+    return { status: 'Queued', error: 'No mail server has been set up yet. Settings → Mail server.' };
   }
   try {
     await tp.sendMail({

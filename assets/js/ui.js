@@ -118,13 +118,16 @@ export function readForm(form) {
 
 export function checkForm(form) {
   let ok = true;
-  form.querySelectorAll('.field').forEach((f) => { f.classList.remove('invalid'); f.querySelector('.err').textContent = ''; });
+  // A .field is usually built by fieldHtml, but a view may hand-roll one (a fieldset
+  // of checkboxes, say) with no .err slot to write into.
+  form.querySelectorAll('.field').forEach((f) => { f.classList.remove('invalid'); const err = f.querySelector('.err'); if (err) err.textContent = ''; });
   for (const el of form.elements) {
     if (!el.name || el.checkValidity()) continue;
     ok = false;
     const field = el.closest('.field');
     field?.classList.add('invalid');
-    if (field) field.querySelector('.err').textContent = el.validity.valueMissing ? 'This field is required' : el.validationMessage;
+    const err = field?.querySelector('.err');
+    if (err) err.textContent = el.validity.valueMissing ? 'This field is required' : el.validationMessage;
   }
   if (!ok) form.querySelector('.invalid input, .invalid select, .invalid textarea')?.focus();
   return ok;

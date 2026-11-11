@@ -91,9 +91,17 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 **requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
 `remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
-**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html`
+**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html, attempts, error`
+`error` carries the mail server's own words when a send failed, so the Email log can show why.
 
-**settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }`
+**settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }, smtp { host, port, encryption (none | starttls | tls), user, fromName }`
+
+The `smtp` block is returned to the `lead` only, and never carries the password. Reading it adds `hasPassword` (whether one is stored), `source` (`settings`, `environment` or `none` — where the server details in force come from) and `envHost`. Writing accepts `smtp.password`: a value replaces the stored one, `''` clears it, and leaving the field out keeps it. With no `smtp.host` saved, the mail settings the process was started with (`SMTP_*`) are used instead.
+
+| Method | Path | Who | Body | Effect |
+|---|---|---|---|---|
+| POST | `/settings/mail-test` | lead | `to?` (defaults to the caller) | Sends one test message through the mail server as currently configured. 200 with the server's own response, or 400 carrying its error. Not recorded in `outbox` |
+| POST | `/outbox/{id}/retry` | ags, lead | | Tries a `Queued` or `Failed` message again and returns the updated row |
 
 ## Validation the server must enforce
 

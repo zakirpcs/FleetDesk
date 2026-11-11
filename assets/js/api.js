@@ -156,6 +156,8 @@ const mock = {
   },
   getSettings: () => delay(load().settings),
   saveSettings(s) { load().settings = { ...load().settings, ...s }; persist(); return delay(load().settings); },
+  testMail: () => { throw new ApiError('Sending email needs the backend connected'); },
+  retryEmail: () => { throw new ApiError('Sending email needs the backend connected'); },
 
   submitRequisition(data) {
     const req = {
@@ -231,6 +233,8 @@ const real = {
   remove: (name, id) => http('DELETE', `/${name}/${id}`),
   getSettings: () => http('GET', '/settings'),
   saveSettings: (s) => http('PUT', '/settings', s),
+  testMail: (to) => http('POST', '/settings/mail-test', { to }),
+  retryEmail: (id) => http('POST', `/outbox/${id}/retry`),
   submitRequisition: (data) => http('POST', '/requisitions', data),
   approveRequisition: (id, body) => http('POST', `/requisitions/${id}/approve`, body),
   rejectRequisition: (id, remarks) => http('POST', `/requisitions/${id}/reject`, { remarks }),

@@ -51,6 +51,17 @@ router.get('/:collection/:id', async (req, res) => {
   res.json(found[0]);
 });
 
+// Try a failed or queued message again, now — after fixing the mail server, say.
+router.post('/outbox/:id/retry', async (req, res) => {
+  if (!isStaff(req.user)) throw new ApiError('Only the AGS team can resend messages.', 403);
+  const { deliver } = await import('../mailer.js');
+  const [found] = await store.list('outbox', { where: 'id = $1', params: [req.params.id] });
+  if (!found) throw new ApiError('Record not found', 404);
+  await deliver([req.params.id]);
+  const [after] = await store.list('outbox', { where: 'id = $1', params: [req.params.id] });
+  res.json(after);
+});
+
 router.post('/:collection', async (req, res) => {
   writable(req.collection, req.user);
   res.status(201).json(await store.create(req.collection, req.body));

@@ -20,6 +20,9 @@ export const DEFAULT_SETTINGS = {
   weekendMultiplier: 1.5,
   holidays: [],               // ISO dates treated like weekend days for overtime
   fuelPrices: { Octane: 122, Petrol: 118, Diesel: 102, CNG: 43 },
+  // Mail server. Empty means "use whatever the environment was started with".
+  // The password is never part of this document — see db/migrations/004_secrets.sql.
+  smtp: { host: '', port: 587, encryption: 'starttls', user: '', fromName: '' },
 };
 
 export function seed() {

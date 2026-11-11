@@ -238,6 +238,32 @@ async function main() {
   ok('PUT /settings', saved?.graceMinutes === 20, JSON.stringify(saved?.graceMinutes));
   await call('PUT', '/settings', { body: settings });   // put it back
 
+  // ---- mail server
+  const { data: leadSettings } = await call('GET', '/settings');
+  ok('the lead sees the mail server block', Boolean(leadSettings.smtp) && 'hasPassword' in leadSettings.smtp, JSON.stringify(leadSettings.smtp));
+  const { data: staffSettings } = await call('GET', '/settings', { role: 'ags' });
+  ok('other roles do not', staffSettings.smtp === undefined, Object.keys(staffSettings).join(','));
+  ok('only the lead can send a test → 403', (await call('POST', '/settings/mail-test', { role: 'ags', body: {} })).status === 403);
+  ok('the test needs a real address → 400', (await call('POST', '/settings/mail-test', { body: { to: 'not-an-address' } })).status === 400);
+
+  const savedSmtp = await call('PUT', '/settings', { body: { smtp: { host: 'mail', port: 2525, encryption: 'none', user: 'relay-user', password: 'relay-secret' } } });
+  ok('the mail server can be set from the API', savedSmtp.data?.smtp?.host === 'mail' && savedSmtp.data.smtp.hasPassword === true, JSON.stringify(savedSmtp.data?.smtp));
+  ok('the saved password never comes back', !JSON.stringify(savedSmtp.data).includes('relay-secret'));
+  const deadRelay = await call('POST', '/settings/mail-test', { body: {} });
+  ok('a test against a dead port reports the real error → 400', deadRelay.status === 400 && /refused|ECONNREFUSED|timeout/i.test(deadRelay.data?.message || ''), `${deadRelay.status} ${deadRelay.data?.message}`);
+
+  // Clearing the host hands control back to whatever the container was started with.
+  const cleared = await call('PUT', '/settings', { body: { smtp: { host: '', port: 587, encryption: 'starttls', user: '', fromName: '', password: '' } } });
+  ok('clearing it falls back to the container settings', cleared.data?.smtp?.source === 'environment' && cleared.data.smtp.hasPassword === false, JSON.stringify(cleared.data?.smtp));
+  const liveTest = await call('POST', '/settings/mail-test', { body: {} });
+  ok('a test through the configured relay is delivered', liveTest.status === 200 && liveTest.data?.ok, `${liveTest.status} ${liveTest.data?.message || liveTest.data?.response}`);
+
+  const { data: mailLog } = await call('GET', '/outbox');
+  ok('the email log carries the delivery detail', mailLog[0] && 'error' in mailLog[0] && 'attempts' in mailLog[0], JSON.stringify(Object.keys(mailLog[0] || {})));
+  const resent = await call('POST', `/outbox/${mailLog[0].id}/retry`);
+  ok('a message can be sent again', resent.status === 200 && resent.data?.status === 'Sent', `${resent.status} ${resent.data?.status}`);
+  ok('employees cannot resend → 403', (await call('POST', `/outbox/${mailLog[0].id}/retry`, { role: 'employee' })).status === 403);
+
   // ---- reports
   const month = today().slice(0, 7);
   for (const [name, path] of [

@@ -158,6 +158,33 @@ Passwords are stored as scrypt hashes and never leave the server. Sessions live 
 database, so disabling an account, changing someone's role, or resetting a password
 signs that person out everywhere at once.
 
+## Mail
+
+Fleet Desk emails the team lead when a request comes in, the requester when it is
+approved, rejected or cancelled. Where it sends from is set in two places:
+
+- **Settings → Mail server**, by the team lead: server address, port, encryption,
+  username, password and sender name, with a **Send a test email** button that reports
+  back exactly what the server said — including the error, when there is one. The
+  password is stored on the server and never returned by the API, to anyone.
+- **The container environment** (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+  `SMTP_PASS`), which is what a fresh deployment uses until somebody fills the form in.
+  Clearing the server address on the Settings page hands control back to it.
+
+Common relays:
+
+| Relay | Address | Port | Encryption |
+|---|---|---|---|
+| Microsoft 365 | `smtp.office365.com` | 587 | STARTTLS |
+| Google Workspace | `smtp.gmail.com` | 587 | STARTTLS |
+| A company relay that needs no sign-in | its hostname | 25 | None |
+| Mailpit, in this compose file | `mail` | 1025 | None |
+
+Every message is written to the `outbox` table before it is sent, so nothing is lost
+when the relay is down: the **Email log** shows the delivery state with the reason a
+message failed, offers **Send again**, and a background worker retries failures on its
+own every `MAIL_RETRY_SECONDS`.
+
 ## Everyday operations
 
 ```bash
@@ -199,9 +226,9 @@ After changing anything under `assets/` or `backend/src/`, rebuild:
   Secure automatically; `COOKIE_SECURE=true` forces it.
 - **Password.** Change `POSTGRES_PASSWORD` before the first start (it is baked into the
   volume at initialisation) and keep `.env` out of version control.
-- **Mail.** Point `SMTP_HOST`/`SMTP_PORT` at the company relay and remove the `mail`
-  service. Every message is written to the `outbox` table first, and failed sends are
-  retried, so nothing is lost if the relay is down.
+- **Mail.** Point Fleet Desk at the company relay — **Settings → Mail server**, or
+  `SMTP_HOST`/`SMTP_PORT` — and remove the `mail` service, which exists only to catch
+  demo mail. See [Mail](#mail).
 - **Card data.** Only the last four digits of a card are ever accepted or stored. The
   column has a check constraint to keep it that way.
 

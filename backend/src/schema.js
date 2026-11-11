@@ -109,6 +109,7 @@ export const COLLECTIONS = {
     fields: {
       sentAt: 'ts', status: 'text', kind: 'text', reqId: 'ref:requisitions',
       to: 'text', cc: 'text', from: 'text', subject: 'text', html: 'text',
+      attempts: 'int', error: 'text',
     },
     required: [],
     refs: [],
