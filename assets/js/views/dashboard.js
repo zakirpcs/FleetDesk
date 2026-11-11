@@ -15,7 +15,33 @@ export async function render(el) {
   const upcoming = data.requisitions.filter((r) => r.status === 'Approved' && r.requiredDate >= T && r.requiredDate <= addDays(T, 2))
     .sort((a, b) => (a.requiredDate + a.startTime).localeCompare(b.requiredDate + b.startTime));
   const ot = overtimeDays(monthTrips, data.drivers, data.settings);
-  const usable = data.cars.filter((x) => ['Available', 'On trip'].includes(x.status));
+
+  // Where every car is right now. A car booked for today, or already out according to
+  // today's logbook, counts as on trip whatever its stored status says — so the desk
+  // sees what is actually free without anyone having to keep the status field current.
+  const todayTrips = data.trips.filter((t) => t.date === T);
+  const bookedToday = data.requisitions.filter((r) => r.status === 'Approved' && r.requiredDate === T);
+  const fleet = { out: [], free: [], off: [] };
+  for (const car of data.cars) {
+    if (car.status === 'Retired') continue;
+    if (car.status === 'Maintenance') { fleet.off.push({ car, who: '', note: 'In maintenance' }); continue; }
+    const booking = bookedToday.find((r) => r.carId === car.id);
+    const trip = todayTrips.find((t) => t.carId === car.id);
+    if (booking) fleet.out.push({ car, who: d[booking.driverId]?.name, note: `${fmtTime(booking.startTime)} · to ${booking.destination}` });
+    else if (trip) fleet.out.push({ car, who: d[trip.driverId]?.name, note: `out since ${fmtTime(trip.startTime)} · to ${trip.to}` });
+    else if (car.status === 'On trip') fleet.out.push({ car, who: d[car.driverId]?.name, note: 'marked on trip' });
+    else fleet.free.push({ car, who: d[car.driverId]?.name, note: [car.seats ? `${car.seats} seats` : '', car.fuelType].filter(Boolean).join(' · ') });
+  }
+  const inService = fleet.out.length + fleet.free.length + fleet.off.length;
+
+  const fleetColumn = (status, list, empty) => `
+    <div>
+      <div class="fleet-head">${pill(status)}<b>${list.length}</b></div>
+      ${list.length ? list.map(({ car, who, note }) => `
+        <div class="fleet-car">${plate(car.regNo)}
+          <div class="who">${esc(who || 'No regular driver')}<small>${esc(note || '')}</small></div>
+        </div>`).join('') : `<p class="fleet-empty">${esc(empty)}</p>`}
+    </div>`;
 
   // Things that need someone's attention
   const daysTo = (iso) => Math.round((fromISO(iso) - fromISO(T)) / 86400000);
@@ -36,13 +62,24 @@ export async function render(el) {
   el.innerHTML = `
     <div class="kpis">
       <a class="kpi" href="#approvals" style="color:inherit;text-decoration:none"><div class="kpi-label">Requests waiting</div><div class="kpi-value">${pending.length}</div><div class="kpi-note">${pending.length ? 'Open approvals' : 'All reviewed'}</div></a>
-      <div class="kpi"><div class="kpi-label">Cars in service</div><div class="kpi-value">${usable.length}<small>of ${data.cars.filter((x) => x.status !== 'Retired').length}</small></div><div class="kpi-note">${data.cars.filter((x) => x.status === 'Maintenance').length} in maintenance</div></div>
+      <a class="kpi" href="#cars" style="color:inherit;text-decoration:none"><div class="kpi-label">Cars available now</div><div class="kpi-value">${fleet.free.length}<small>of ${inService}</small></div><div class="kpi-note">${fleet.out.length} on trip · ${fleet.off.length} in maintenance</div></a>
       <div class="kpi"><div class="kpi-label">Km run this month</div><div class="kpi-value">${num(sum(monthTrips, tripKm))}<small>km</small></div><div class="kpi-note">${monthTrips.length} logbook entries</div></div>
       <div class="kpi"><div class="kpi-label">Fuel spend this month</div><div class="kpi-value">${bdt(sum(monthFuel, (f) => f.amount))}</div><div class="kpi-note">${monthFuel.length} loads</div></div>
       <div class="kpi"><div class="kpi-label">Driver overtime this month</div><div class="kpi-value">${num(sum(ot, (x) => x.otMin) / 60)}<small>h</small></div><div class="kpi-note">${bdt(sum(ot, (x) => x.amount))}</div></div>
     </div>
 
-    <div class="grid grid-2">
+    <section class="panel mt">
+      <div class="panel-head"><h2>Cars right now</h2><span class="spacer"></span><a href="#cars" class="muted">Car inventory</a></div>
+      <div class="panel-body">
+        <div class="grid grid-3 fleet-now">
+          ${fleetColumn('On trip', fleet.out, 'Every car is in.')}
+          ${fleetColumn('Available', fleet.free, 'Every car is out or off the road.')}
+          ${fleetColumn('Maintenance', fleet.off, 'Nothing off the road.')}
+        </div>
+      </div>
+    </section>
+
+    <div class="grid grid-2 mt">
       <section class="panel">
         <div class="panel-head"><h2>Booked trips, next 3 days</h2><span class="spacer"></span><a href="#approvals" class="muted">All requests</a></div>
         <div class="panel-body" style="padding:8px 0 4px">

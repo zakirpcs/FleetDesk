@@ -407,6 +407,14 @@ dl.facts dd { margin: 0; font-weight: 500; }
 .toast.bad { background: var(--danger); }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
 
+/* Dashboard: which cars are out, free or off the road. */
+.fleet-now { gap: 16px 26px; }
+.fleet-head { display: flex; align-items: baseline; gap: 9px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+.fleet-head b { font-family: var(--font-head); font-size: 19px; }
+.fleet-car { display: flex; align-items: center; gap: 11px; padding: 8px 0; }
+.fleet-car + .fleet-car { border-top: 1px solid var(--line-soft); }
+.fleet-empty { margin: 10px 0 0; color: var(--ink-3); font-size: 13.5px; }
+
 /* Person cell: avatar beside name and email. */
 .who-row { display: flex; align-items: center; gap: 10px; }
 .who-row .avatar { width: 30px; height: 30px; font-size: 12px; flex: none; }
