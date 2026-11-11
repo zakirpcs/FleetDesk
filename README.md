@@ -9,6 +9,8 @@ mail relay.
 Nothing is loaded from the internet at runtime — the fonts are bundled — so it works
 on an isolated network.
 
+![The Fleet Desk dashboard: requests waiting, cars in service, km and fuel for the month, trips booked for the next three days, papers and licences about to expire, and km per car](docs/screenshots/dashboard.png)
+
 ## What's in it
 
 | Page | Who sees it | Covers |
@@ -38,6 +40,19 @@ from three months ago opens the logbook on that day and that car, even though th
 page normally starts on the current month. An employee's search covers only their
 own requests. It runs in the browser over the lists the app already loads; for a much
 larger fleet, move it behind a search endpoint on the API.
+
+## Screens
+
+| | |
+|---|---|
+| [<img src="docs/screenshots/approve-request.png" alt="Reviewing a car request: the requester's details, a car and driver to assign, and the confirmation email previewed beside them">](docs/screenshots/approve-request.png) | [<img src="docs/screenshots/logbook.png" alt="The daily logbook: one row per car per day with driver, duty times, odometer readings and km run">](docs/screenshots/logbook.png) |
+| **Approving a request** — assign the car and driver, with clashes flagged, and read the confirmation email exactly as the requester will get it. | **Daily logbook** — one entry per car per day. Running km and driver overtime are worked out from these. |
+| [<img src="docs/screenshots/fuel-consumption.png" alt="Fuel consumption report: cost and quantity for the month, fuel cost per car, and a table flagging cars running below their own three-month average">](docs/screenshots/fuel-consumption.png) | [<img src="docs/screenshots/search.png" alt="The search box open with results grouped into cars and logbook entries">](docs/screenshots/search.png) |
+| **Fuel consumption** — km per litre against each car's own three-month average, with a flag when efficiency drops. | **Search** — one box over pages, cars, drivers, cards, requests, logbook entries and fuel loads. |
+| [<img src="docs/screenshots/people-and-access.png" alt="People and access: the list of accounts with role, status, last sign-in and actions to edit or reset a password">](docs/screenshots/people-and-access.png) | [<img src="docs/screenshots/sign-in.png" alt="The Fleet Desk sign-in page">](docs/screenshots/sign-in.png) |
+| **People and access** — who can sign in and what they may do, managed by the team lead. | **Signing in** — accounts and roles, or hand identity over to an SSO proxy. |
+| [<img src="docs/screenshots/menu.png" alt="The top menu with the Daily records category open, showing the daily logbook and fuel loads">](docs/screenshots/menu.png) | [<img src="docs/screenshots/mobile-menu.png" alt="Fleet Desk on a phone, with the menu open as a drawer grouped by category">](docs/screenshots/mobile-menu.png) |
+| **Navigation** — pages grouped by category in the top menu. | **On a phone** — the menu becomes a drawer, and tables scroll. |
 
 ## Start the whole stack
 
@@ -255,6 +270,7 @@ backend/src/shared/          Generated copy of the shared frontend modules
 backend/test/smoke.js        End-to-end API test
 
 db/migrations/*.sql          Schema, applied in order by the API at startup
+docs/screenshots/            The images in this README
 deploy/                      Nginx config and RHEL 10 install script (no containers)
 API_CONTRACT.md              What the backend provides
 ```
