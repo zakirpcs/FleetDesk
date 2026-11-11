@@ -407,6 +407,15 @@ dl.facts dd { margin: 0; font-weight: 500; }
 .toast.bad { background: var(--danger); }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
 
+/* Page tabs: sections of one page, each with its own address. */
+.tabs { display: flex; gap: 2px; margin: -4px 0 18px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab {
+  padding: 9px 14px 10px; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  color: var(--ink-2); text-decoration: none; font-weight: 600; white-space: nowrap;
+}
+.tab:hover { color: var(--ink); background: var(--line-soft); border-radius: var(--r-sm) var(--r-sm) 0 0; }
+.tab[aria-current="page"] { color: var(--sign); border-bottom-color: var(--sign); }
+
 /* Dashboard: which cars are out, free or off the road. */
 .fleet-now { gap: 16px 26px; }
 .fleet-head { display: flex; align-items: baseline; gap: 9px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }

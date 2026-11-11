@@ -28,8 +28,12 @@ on an isolated network.
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
-| Email log | AGS | Every email sent (to the team lead, confirmations, rejections) |
-| Settings | Team lead | Approval contacts, shift and overtime rules, weekend days, holidays, fuel prices |
+| Admin → Email log | AGS | Every email sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again |
+| Admin → Settings | Team lead | Approval contacts, shift and overtime rules, weekend days, holidays, fuel prices, mail server |
+| Admin → People and access | Team lead | Who can sign in, their role, and resetting a password |
+
+Admin is one page with those three as tabs; each tab has its own address, so
+`#admin/users` and the search box both land straight on it.
 
 Tables can be sorted and exported to CSV; reports can be printed.
 

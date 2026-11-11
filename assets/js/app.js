@@ -2,6 +2,7 @@
 import { api, CONFIG, loadAll } from './api.js';
 import { esc, initials, byId, fmtDate, fmtTime, num, num1, bdt, unitOf } from './utils.js';
 import { toast, confirmDialog, closeAllModals, pill } from './ui.js';
+import { tabsFor as adminTabs } from './views/admin.js';
 
 const P = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const I = {
@@ -41,9 +42,7 @@ export const ROUTES = [
   { path: 'consumption', title: 'Fuel consumption', group: 'Reports', roles: STAFF, load: () => import('./views/consumption.js') },
   { path: 'overtime', title: 'Driver overtime', group: 'Reports', roles: STAFF, load: () => import('./views/overtime.js') },
   { path: 'assignments', title: 'Assignment history', group: 'Reports', roles: STAFF, load: () => import('./views/assignments.js') },
-  { path: 'outbox', title: 'Email log', group: 'Admin', roles: STAFF, load: () => import('./views/outbox.js') },
-  { path: 'users', title: 'People and access', group: 'Admin', roles: ['lead'], load: () => import('./views/users.js'), icon: 'users', backend: true },
-  { path: 'settings', title: 'Settings', group: 'Admin', roles: ['lead'], load: () => import('./views/settings.js') },
+  { path: 'admin', title: 'Admin', group: 'Admin', roles: STAFF, load: () => import('./views/admin.js'), icon: 'settings', tabbed: true },
   // Reached from the user menu rather than the menu bar.
   { path: 'account', title: 'My account', group: 'Account', roles: ALL, load: () => import('./views/account.js'), icon: 'account', hidden: true, backend: true },
 ];
@@ -93,10 +92,11 @@ async function renderNav() {
 
   const badge = (n) => (n ? `<span class="nav-badge" aria-label="${n} waiting for review">${n}</span>` : '');
   const pageBadge = (r) => badge(r.badge ? pendingCount : 0);
-  const link = (r, cls) => `<a class="${cls}" href="#${r.path}"${r.path === current ? ' aria-current="page"' : ''}>${I[r.icon || r.path]}<span>${esc(r.title)}</span>${pageBadge(r)}</a>`;
+  const isCurrent = (r) => r.path === current || (r.tabbed && currentTop() === r.path);
+  const link = (r, cls) => `<a class="${cls}" href="#${r.path}"${isCurrent(r) ? ' aria-current="page"' : ''}>${I[r.icon || r.path]}<span>${esc(r.title)}</span>${pageBadge(r)}</a>`;
 
   document.getElementById('menuInner').innerHTML = Object.entries(groups).map(([group, items], i) => {
-    const here = items.some((r) => r.path === current) ? ' active' : '';
+    const here = items.some(isCurrent) ? ' active' : '';
     // A category with a single page needs no dropdown.
     if (items.length === 1) return `<div class="menu-item${here}">${link(items[0], 'menu-top is-link')}</div>`;
     const waiting = items.some((r) => r.badge) ? pendingCount : 0;
@@ -127,7 +127,7 @@ function renderUserMenu() {
       ${pill(ROLE_NAME[state.role] || state.role)}
     </div>
     ${signedIn ? `<a href="#account">${I.account}<span>My account</span></a>` : ''}
-    ${state.role === 'lead' && signedIn ? `<a href="#users">${I.users}<span>People and access</span></a>` : ''}
+    ${state.role === 'lead' && signedIn ? `<a href="#admin/users">${I.users}<span>People and access</span></a>` : ''}
     ${state.authMode === 'password' ? `<button type="button" id="signOut" class="danger">${I.signout}<span>Sign out</span></button>` : ''}
     ${state.authMode === 'proxy' ? '<p class="user-panel-note">Signed in with your company account.</p>' : ''}
     ${state.authMode === 'demo' ? '<p class="user-panel-note">Demo mode: pick a role with “Viewing as”. Sign-in needs the backend.</p>' : ''}`;
@@ -250,11 +250,19 @@ const PER_TYPE = 4, MAX_RESULTS = 14, SEARCH_TTL = 30_000;
 
 let searchCache = { role: null, at: 0, items: null };
 
-// The path is searchable too, so "mileage" finds "Running km".
-const pageItems = () => routesFor(state.role).map((r) => ({
-  type: 'Page', icon: r.icon || r.path, page: r.path, params: {},
-  title: r.title, sub: r.group, terms: [r.title, r.group, r.path],
-}));
+// The path is searchable too, so "mileage" finds "Running km". A tabbed page offers
+// its tabs as well, so "email log" still goes straight there.
+const pageItems = () => routesFor(state.role).flatMap((r) => {
+  const page = {
+    type: 'Page', icon: r.icon || r.path, page: r.path, params: {},
+    title: r.title, sub: r.group, terms: [r.title, r.group, r.path],
+  };
+  if (!r.tabbed) return [page];
+  return [page, ...adminTabs(state.role).map((t) => ({
+    type: 'Page', icon: t.path === 'users' ? 'users' : t.path, page: `${r.path}/${t.path}`, params: {},
+    title: t.title, sub: `${r.group} · ${r.title}`, terms: [t.title, t.path, r.group],
+  }))];
+});
 
 async function recordItems() {
   const usable = searchCache.items && searchCache.role === state.role && Date.now() - searchCache.at < SEARCH_TTL;
@@ -570,19 +578,28 @@ export function passwordChanged() {
 }
 
 const currentPath = () => (location.hash.replace(/^#\/?/, '').split('?')[0] || '');
+const currentTop = () => currentPath().split('/')[0];
+const currentSub = () => currentPath().split('/').slice(1).join('/');
+// Where the admin pages used to live, so old links and bookmarks still work.
+const LEGACY = { settings: 'admin/settings', users: 'admin/users', outbox: 'admin/outbox' };
 const routeQuery = () => new URLSearchParams(location.hash.split('?')[1] || '');
 
 let renderSeq = 0;
 async function route() {
   const seq = ++renderSeq;
   let path = currentPath();
+  if (LEGACY[path]) {
+    history.replaceState(null, '', `#${LEGACY[path]}`);
+    path = LEGACY[path];
+  }
   const allowed = routesFor(state.role);
   // A temporary password has to be replaced before anything else is reachable.
   if (state.mustChangePassword && path !== 'account') {
     history.replaceState(null, '', '#account');
     path = 'account';
   }
-  let r = allowed.find((x) => x.path === path);
+  const top = path.split('/')[0];
+  let r = allowed.find((x) => x.path === path) || allowed.find((x) => x.tabbed && x.path === top);
   if (!r) { r = allowed[0]; if (path !== r.path) { history.replaceState(null, '', '#' + r.path); path = r.path; } }
   document.getElementById('pageTitle').textContent = r.title;
   document.getElementById('pageCrumb').textContent = r.group;
@@ -604,7 +621,7 @@ async function route() {
     // just left writes into nothing instead of tripping over missing elements.
     const pane = document.createElement('div');
     view.replaceChildren(pane);
-    await mod.render(pane, ctx);
+    await mod.render(pane, ctx, path.split('/').slice(1).join('/'));
     applySearchTerm(pane);
     view.focus({ preventScroll: true });
     window.scrollTo(0, 0);

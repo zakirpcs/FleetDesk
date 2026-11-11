@@ -36,6 +36,8 @@ The role on the account decides what is allowed:
 
 `GET /api/v1/me` → `{ id, name, designation, email, role, mustChangePassword, authMode }` so the form can prefill and the nav can be built.
 
+The frontend groups settings, accounts and the email log into one Admin page with a tab each (`#admin/settings`, `#admin/users`, `#admin/outbox`). That is presentation only: the endpoints behind those tabs are unchanged.
+
 ### Sign-in and accounts
 
 | Method | Path | Who | Body | Effect |
