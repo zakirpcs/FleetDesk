@@ -63,6 +63,23 @@ export async function render(el) {
         </div>`).join('') : `<p class="fleet-empty">${esc(empty)}</p>`}
     </div>`;
 
+  // Fuel card headroom for the month, worst first — the cards page uses the same
+  // thresholds and the same meter, so the two readings never disagree.
+  const spentOn = {};
+  for (const f of monthFuel) if (f.cardId) spentOn[f.cardId] = (spentOn[f.cardId] || 0) + Number(f.amount);
+  const cardLimits = data.cards
+    .filter((k) => k.status === 'Active')
+    .map((k) => {
+      const used = spentOn[k.id] || 0;
+      // The bar stops at full, but the caption tells the truth about an overspend.
+      const pct = k.monthlyLimit ? (used / k.monthlyLimit) * 100 : 0;
+      return { card: k, used, pct, left: (k.monthlyLimit || 0) - used };
+    })
+    .sort((a, b) => b.pct - a.pct);
+  const cashSpend = sum(monthFuel.filter((f) => !f.cardId), (f) => f.amount);
+  const inactiveCards = data.cards.length - cardLimits.length;
+  const cardHeadroom = sum(cardLimits, (x) => Math.max(0, x.left));
+
   // Things that need someone's attention
   const daysTo = (iso) => Math.round((fromISO(iso) - fromISO(T)) / 86400000);
   const alerts = [];
@@ -85,7 +102,7 @@ export async function render(el) {
       <a class="kpi" href="#cars" style="color:inherit;text-decoration:none"><div class="kpi-label">Cars available now</div><div class="kpi-value">${fleet.free.length}<small>of ${inService}</small></div><div class="kpi-note">${fleet.out.length} on trip · ${fleet.off.length} in maintenance</div></a>
       <a class="kpi" href="#drivers" style="color:inherit;text-decoration:none"><div class="kpi-label">Drivers available now</div><div class="kpi-value">${crew.free.length}<small>of ${onRoster}</small></div><div class="kpi-note">${crew.out.length} on duty · ${crew.off.length} on leave</div></a>
       <div class="kpi"><div class="kpi-label">Km run this month</div><div class="kpi-value">${num(sum(monthTrips, tripKm))}<small>km</small></div><div class="kpi-note">${monthTrips.length} logbook entries</div></div>
-      <div class="kpi"><div class="kpi-label">Fuel spend this month</div><div class="kpi-value">${bdt(sum(monthFuel, (f) => f.amount))}</div><div class="kpi-note">${monthFuel.length} loads</div></div>
+      <a class="kpi" href="#cards" style="color:inherit;text-decoration:none"><div class="kpi-label">Fuel spend this month</div><div class="kpi-value">${bdt(sum(monthFuel, (f) => f.amount))}</div><div class="kpi-note">${monthFuel.length} loads · ${bdt(cardHeadroom)} left on cards</div></a>
       <div class="kpi"><div class="kpi-label">Driver overtime this month</div><div class="kpi-value">${num(sum(ot, (x) => x.otMin) / 60)}<small>h</small></div><div class="kpi-note">${bdt(sum(ot, (x) => x.amount))}</div></div>
     </div>
 
@@ -130,6 +147,28 @@ export async function render(el) {
         </div>
       </section>
     </div>
+
+    <section class="panel mt">
+      <div class="panel-head">
+        <h2>Card limits this month</h2>
+        <span class="muted">${[cashSpend ? `${bdt(cashSpend)} also paid in cash` : '', inactiveCards ? `${inactiveCards} card${inactiveCards === 1 ? '' : 's'} not active` : ''].filter(Boolean).join(' · ')}</span>
+        <span class="spacer"></span><a href="#cards" class="muted">Payment cards</a>
+      </div>
+      <div class="panel-body">
+        ${cardLimits.length ? `<div class="grid grid-2 card-limits">${cardLimits.map(({ card, used, pct, left }) => `
+          <div class="card-limit">
+            <div class="card-limit-head">
+              <b>${esc(card.provider)} ••${esc(card.last4)}</b>
+              <span class="muted">${card.carId ? esc(c[card.carId]?.regNo.slice(-7) || '') : 'Pool card'}</span>
+              <span class="spacer"></span>
+              <span>${bdt(used)} <small class="muted">of ${bdt(card.monthlyLimit)}</small></span>
+            </div>
+            <div class="meter ${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}"><span style="width:${Math.min(100, pct)}%"></span></div>
+            <small class="muted">${Math.round(pct)}% used${card.monthlyLimit ? ` · ${left >= 0 ? `${bdt(left)} left` : `${bdt(-left)} over`}` : ' · no limit set'}</small>
+          </div>`).join('')}</div>`
+          : '<div class="empty">No active payment cards.</div>'}
+      </div>
+    </section>
 
     <div class="grid grid-2 mt">
       <section class="panel"><div class="panel-head"><h2>Km per car this month</h2></div><div class="panel-body" id="c1"></div></section>

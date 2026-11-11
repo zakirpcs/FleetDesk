@@ -43,8 +43,9 @@ export async function render(el) {
         { key: 'loads', label: 'Loads this month', num: true, render: (k) => used[k.id]?.n || 0, sort: (k) => used[k.id]?.n || 0 },
         { key: 'used', label: 'Spent this month', num: true, render: (k) => bdt(used[k.id]?.amt || 0), sort: (k) => used[k.id]?.amt || 0 },
         { key: 'limit', label: 'Of monthly limit', sortable: false, render: (k) => {
-          const pct = k.monthlyLimit ? Math.min(100, ((used[k.id]?.amt || 0) / k.monthlyLimit) * 100) : 0;
-          return `<div title="${Math.round(pct)}% of ${bdt(k.monthlyLimit)}"><div class="meter ${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}"><span style="width:${pct}%"></span></div><small class="muted">${Math.round(pct)}% of ${bdt(k.monthlyLimit)}</small></div>`;
+          // Unclamped for the figure, clamped for the bar: an overspend should still read as one.
+          const pct = k.monthlyLimit ? ((used[k.id]?.amt || 0) / k.monthlyLimit) * 100 : 0;
+          return `<div title="${Math.round(pct)}% of ${bdt(k.monthlyLimit)}"><div class="meter ${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}"><span style="width:${Math.min(100, pct)}%"></span></div><small class="muted">${Math.round(pct)}% of ${bdt(k.monthlyLimit)}</small></div>`;
         } },
         { key: 'expiry', label: 'Expires', render: (k) => { const s = expiryState(k.expiry); return s ? pill(fmtMonth(k.expiry), s) : esc(fmtMonth(k.expiry)); } },
         { key: 'status', label: 'Status', render: (k) => pill(k.status) },

@@ -415,6 +415,16 @@ dl.facts dd { margin: 0; font-weight: 500; }
 .fleet-car + .fleet-car { border-top: 1px solid var(--line-soft); }
 .fleet-empty { margin: 10px 0 0; color: var(--ink-3); font-size: 13.5px; }
 
+/* Dashboard: spend against each card's monthly limit. */
+.card-limits { gap: 16px 28px; }
+.card-limit-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 7px; font-size: 14.5px; }
+.card-limit-head b { font-weight: 600; }
+.card-limit-head small { font-weight: 400; }
+.card-limit .meter { min-width: 0; }
+/* The caption under the bar only — not the "of ৳ x" inside the heading. */
+.card-limit > small { display: block; margin-top: 5px; font-size: 12.5px; }
+.card-limit-head > span:last-child { white-space: nowrap; }
+
 /* Person cell: avatar beside name and email. */
 .who-row { display: flex; align-items: center; gap: 10px; }
 .who-row .avatar { width: 30px; height: 30px; font-size: 12px; flex: none; }
