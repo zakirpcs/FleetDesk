@@ -264,3 +264,10 @@ API_CONTRACT.md              What the backend provides
 - Shift 9:00 AM to 6:00 PM, 15-minute grace, overtime rounded down to 30 minutes
 - Weekend Friday and Saturday, paid at 1.5×; weeks start Sunday
 - Fuel prices: placeholders. Set them to the current government rates
+
+## License
+
+Fleet Desk is released under the [MIT License](LICENSE).
+
+The bundled Barlow fonts are not covered by it. They are licensed separately under
+the SIL Open Font License, included as `assets/fonts/OFL-LICENSE.txt`.
