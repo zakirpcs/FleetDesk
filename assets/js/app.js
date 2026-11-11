@@ -556,6 +556,7 @@ async function identify() {
   if (CONFIG.USE_MOCK) {
     state.user = USERS[state.role];
     state.authMode = 'demo';
+    roleSelect.closest('.role-switch').hidden = false;   // the demo picks its own role
     return;
   }
   const me = await api.me();
@@ -563,8 +564,7 @@ async function identify() {
   state.user = { id: me.id, name: me.name, designation: me.designation, email: me.email };
   state.authMode = me.authMode === 'proxy' ? 'proxy' : 'password';
   state.mustChangePassword = Boolean(me.mustChangePassword);
-  // The account decides the role now, so the demo switcher has nothing to do.
-  roleSelect.closest('.role-switch').hidden = true;
+  // The account decides the role here, so the demo switcher stays out of the way.
 }
 
 /** Called by views after the signed-in person edits their own profile. */

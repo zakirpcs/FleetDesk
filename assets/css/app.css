@@ -41,6 +41,13 @@
 * { box-sizing: border-box; }
 /* The hidden attribute must win over any display rule a class sets. */
 [hidden] { display: none !important; }
+/* Always reserve room for the scrollbar. Without this a page that only just fits —
+   switching between settings tabs, say — gains and loses the bar, and everything on
+   the page shifts sideways each time. Only on the desktop layout: phones overlay
+   their scrollbars, so reserving a gutter there just steals width. */
+@media (min-width: 981px) {
+  html { scrollbar-gutter: stable; }
+}
 html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--font);
@@ -210,7 +217,7 @@ a { color: var(--sign); }
 
 /* ---------- Page column ---------- */
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.page-wrap { width: 100%; max-width: 1440px; margin: 0 auto; padding: 20px 28px 48px; }
+.page-wrap { width: 100%; max-width: 1440px; margin: 0 auto; padding: 20px 28px 28px; }
 .page-head { margin-bottom: 16px; }
 .page-crumb { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .page-title { font-family: var(--font-head); font-weight: 700; font-size: 27px; line-height: 1.15; margin: 1px 0 0; letter-spacing: .005em; }
@@ -524,7 +531,7 @@ dl.facts dd { margin: 0; font-weight: 500; }
   .search-key { display: none; }
   .search-panel { left: 0; right: 0; width: auto; max-height: 60vh; }
 
-  .page-wrap { padding: 16px 16px 40px; }
+  .page-wrap { padding: 16px 16px 24px; }
   .grid-2, .grid-3, .form-grid { grid-template-columns: 1fr; }
   .role-switch span, .user-chip .who, .user-chip .caret { display: none; }
   .user-panel { width: min(280px, calc(100vw - 32px)); }
@@ -534,7 +541,12 @@ dl.facts dd { margin: 0; font-weight: 500; }
 }
 @media (max-width: 420px) {
   .brand-name { font-size: 20px; }
-  .role-switch select { max-width: 104px; }
+  .brand-mark svg { width: 26px; height: 26px; }
+  /* Brand, role picker, avatar and the menu button all have to fit a 360px phone. */
+  .topbar-right { gap: 8px; }
+  .role-switch select { max-width: 92px; }
+  .user-chip { padding: 2px; }
+  .icon-btn { padding: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

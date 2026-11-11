@@ -24,7 +24,8 @@
             </span>
           </a>
           <div class="topbar-right">
-            <label class="role-switch" title="Demo only — with a sign-in in front, the role comes from the account">
+            <!-- Only the browser-only demo uses this; app.js reveals it there. -->
+            <label class="role-switch" hidden title="Demo only — with a sign-in in front, the role comes from the account">
               <span>Viewing as</span>
               <select id="roleSelect">
                 <option value="employee">Employee</option>
