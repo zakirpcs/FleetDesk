@@ -9,8 +9,8 @@
 // image rewrites that tag to "api".
 
 import { seed, DEFAULT_SETTINGS } from './seed.js';
-import { uid, today } from './utils.js';
-import { confirmEmail, rejectEmail, newRequestEmail } from './email.js';
+import { uid, today, pad } from './utils.js';
+import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from './email.js';
 
 const declaredMode = document.querySelector('meta[name="fleetdesk-mode"]')?.content?.trim();
 
@@ -188,10 +188,22 @@ const mock = {
     persist();
     return delay(req);
   },
-  cancelRequisition(id) {
+  cancelRequisition(id, reason = '') {
     const req = find('requisitions', id);
-    if (req.status !== 'Pending') throw new ApiError('Only pending requests can be cancelled here. Contact AGS for approved trips.', 409);
-    req.status = 'Cancelled'; persist();
+    if (req.status === 'Cancelled') throw new ApiError('That request is already cancelled.', 409);
+    if (!['Pending', 'Approved'].includes(req.status)) throw new ApiError(`A ${req.status.toLowerCase()} request cannot be cancelled.`, 409);
+    if (req.status === 'Approved') {
+      const now = new Date();
+      const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      if (req.requiredDate < today() || (req.requiredDate === today() && req.startTime <= hhmm)) {
+        throw new ApiError('That trip has already started. Call AGS if the car is no longer needed.', 409);
+      }
+      if (!reason.trim()) throw new ApiError('Give a short reason so AGS knows why the car is free again');
+      const d = load();
+      queueEmail(cancelEmail({ ...req, cancelReason: reason }, d.drivers.find((x) => x.id === req.driverId), d.cars.find((x) => x.id === req.carId), d.settings));
+    }
+    Object.assign(req, { status: 'Cancelled', cancelledAt: new Date().toISOString(), cancelledBy: req.name, cancelReason: reason });
+    persist();
     return delay(req);
   },
   conflicts: (q) => delay(conflicts(q)),
@@ -222,7 +234,7 @@ const real = {
   submitRequisition: (data) => http('POST', '/requisitions', data),
   approveRequisition: (id, body) => http('POST', `/requisitions/${id}/approve`, body),
   rejectRequisition: (id, remarks) => http('POST', `/requisitions/${id}/reject`, { remarks }),
-  cancelRequisition: (id) => http('POST', `/requisitions/${id}/cancel`),
+  cancelRequisition: (id, reason = '') => http('POST', `/requisitions/${id}/cancel`, { reason }),
   conflicts: (q) => http('GET', `/requisitions/conflicts?${new URLSearchParams(q)}`),
   resetDemo: async () => { throw new ApiError('Demo reset is only available in mock mode'); },
   me: () => http('GET', '/me'),

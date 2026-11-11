@@ -22,7 +22,10 @@ const session = {};
 
 let pass = 0;
 const failures = [];
+// SMOKE_VERBOSE=1 prints every check, not just the ones that failed.
+const verbose = /^(1|true|yes)$/i.test(process.env.SMOKE_VERBOSE || '');
 const ok = (name, cond, extra = '') => {
+  if (verbose) console.log(`${cond ? '✓' : '✗'} ${name}${extra ? ` — ${extra}` : ''}`);
   if (cond) { pass++; return true; }
   failures.push(`${name}${extra ? ` — ${extra}` : ''}`);
   return false;
@@ -181,6 +184,48 @@ async function main() {
   const { data: third } = await call('POST', '/requisitions', { role: 'employee', body: { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: EMPLOYEE_EMAIL, requiredDate: bookingDate, startTime: '17:00', startPoint: 'Head office', destination: 'Cancel test', reason: 'Cancel test' } });
   const { status: cancelled, data: cancelBody } = await call('POST', `/requisitions/${third.id}/cancel`, { role: 'employee' });
   ok('POST /requisitions/:id/cancel', cancelled === 200 && cancelBody?.status === 'Cancelled', JSON.stringify(cancelBody));
+  ok('cancelling twice → 409', (await call('POST', `/requisitions/${third.id}/cancel`, { role: 'employee' })).status === 409);
+
+  // ---- a requester calling off a trip that was already approved
+  const { data: booked } = await call('POST', '/requisitions', { role: 'employee', body: { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: EMPLOYEE_EMAIL, requiredDate: bookingDate, startTime: '18:00', startPoint: 'Head office', destination: 'Self-cancel test', reason: 'Self-cancel test' } });
+  const { status: bookedOk } = await call('POST', `/requisitions/${booked.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('a second trip is approved for the self-cancel test', bookedOk === 200, String(bookedOk));
+  const cancelNoReason = await call('POST', `/requisitions/${booked.id}/cancel`, { role: 'employee', body: {} });
+  ok('cancelling an approved trip needs a reason → 400', cancelNoReason.status === 400, `${cancelNoReason.status} ${cancelNoReason.data?.message}`);
+  // AGS run the desk, so they can call a booked trip off too.
+  const byStaff = await call('POST', `/requisitions/${booked.id}/cancel`, { role: 'ags', body: { reason: 'Caller said the car is no longer needed' } });
+  ok('AGS staff can cancel a booked trip', byStaff.status === 200 && byStaff.data?.status === 'Cancelled', `${byStaff.status} ${byStaff.data?.message}`);
+
+  // The point of the feature: the requester calling off their own booked trip.
+  const { data: own } = await call('POST', '/requisitions', { role: 'employee', body: { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: EMPLOYEE_EMAIL, requiredDate: bookingDate, startTime: '18:00', startPoint: 'Head office', destination: 'Owner cancel test', reason: 'Owner cancel test' } });
+  const { status: ownApproved } = await call('POST', `/requisitions/${own.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('that trip is approved', ownApproved === 200, String(ownApproved));
+  const byOwner = await call('POST', `/requisitions/${own.id}/cancel`, { role: 'employee', body: { reason: 'Meeting moved to next week' } });
+  ok('the requester can cancel their own booked trip', byOwner.status === 200 && byOwner.data?.status === 'Cancelled', `${byOwner.status} ${byOwner.data?.message}`);
+
+  const { data: afterCancel } = await call('GET', `/requisitions/${own.id}`, { role: 'employee' });
+  ok('the cancellation is recorded', afterCancel?.cancelReason === 'Meeting moved to next week' && afterCancel.cancelledAt && afterCancel.cancelledBy,
+    JSON.stringify({ by: afterCancel?.cancelledBy, why: afterCancel?.cancelReason }));
+  const { data: outboxAfter } = await call('GET', '/outbox');
+  const notice = outboxAfter.find((m) => m.reqId === own.id && m.kind === 'cancellation');
+  ok('AGS is emailed about it', notice?.to === 'ags.lead@company.local' && notice.html.includes('Meeting moved to next week'), JSON.stringify(notice?.subject));
+  const { data: freed } = await call('GET', `/requisitions/conflicts?date=${bookingDate}&startTime=18:00&driverId=${driver.id}&carId=${car.id}`);
+  ok('the car and driver are free again', Array.isArray(freed) && freed.length === 0, JSON.stringify(freed.map((x) => x.reqNo)));
+
+  // Somebody else's request stays off limits.
+  const { data: everyRequest } = await call('GET', '/requisitions');
+  const stranger = everyRequest.find((r) => r.email.toLowerCase() !== EMPLOYEE_EMAIL && ['Pending', 'Approved'].includes(r.status));
+  if (stranger) {
+    const forbidden = await call('POST', `/requisitions/${stranger.id}/cancel`, { role: 'employee', body: { reason: 'not mine to cancel' } });
+    ok('cancelling someone else\'s request → 403', forbidden.status === 403, `${forbidden.status} ${forbidden.data?.message}`);
+  }
+
+  const startedToday = await call('POST', '/requisitions', { role: 'employee', body: { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: EMPLOYEE_EMAIL, requiredDate: today(), startTime: '00:01', startPoint: 'Head office', destination: 'Already started', reason: 'Already started' } });
+  if (startedToday.status === 201) {
+    await call('POST', `/requisitions/${startedToday.data.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+    const late = await call('POST', `/requisitions/${startedToday.data.id}/cancel`, { role: 'employee', body: { reason: 'too late' } });
+    ok('a trip that has already started → 409', late.status === 409, `${late.status} ${late.data?.message}`);
+  }
 
   // ---- settings
   const { data: settings } = await call('GET', '/settings');

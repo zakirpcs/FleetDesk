@@ -16,7 +16,7 @@ on an isolated network.
 | Page | Who sees it | Covers |
 |---|---|---|
 | Request a car | Everyone | Requisition form: name, designation, email, date, start point, destination, starting time, reason |
-| My requests | Everyone | The user's requests and their status, the confirmation email they received, and cancelling while pending |
+| My requests | Everyone | The user's requests and their status, the confirmation email they received, and calling off a trip themselves — while it is still waiting, or after approval right up until it starts, which frees the car and driver and tells AGS why |
 | Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged), preview and send the confirmation email, or reject with a reason |
 | Dashboard | AGS | Which cars are on trip, available or in maintenance and which drivers are on duty, free or on leave right now; waiting requests; trips booked for the next 3 days; expiring papers and licences; spend against each card's monthly limit; km charts |
 | Cars | AGS | Car inventory, regular driver, fuel card, papers expiry (fitness, tax token, insurance) |

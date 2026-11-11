@@ -66,3 +66,28 @@ export function newRequestEmail(req, settings) {
       <p>Open Fleet Desk, then Approvals, to assign a driver and car.</p>`,
   };
 }
+
+/** Sent to the team lead when a requester calls off a trip that was already approved. */
+export function cancelEmail(req, driver, car, settings) {
+  const rows = [
+    ['Request no.', req.reqNo],
+    ['Was booked for', pickup(req)],
+    ['Route', `${req.startPoint} to ${req.destination}`],
+    ['Driver', driver?.name],
+    ['Car', car?.regNo],
+    ['Reason given', req.cancelReason],
+  ];
+  return {
+    to: settings.teamLeadEmail,
+    cc: req.email,
+    from: settings.senderEmail,
+    subject: `Car request cancelled: ${req.reqNo} on ${fmtDate(req.requiredDate)}`,
+    kind: 'cancellation',
+    reqId: req.id,
+    rows,
+    html: `
+      <p>${esc(req.name)} has cancelled this trip. The car and driver are free again.</p>
+      <table>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v ?? '—')}</b></td></tr>`).join('')}</table>
+      <p>Nothing else is needed unless the car was being held for it.</p>`,
+  };
+}

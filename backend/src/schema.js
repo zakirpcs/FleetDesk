@@ -96,6 +96,7 @@ export const COLLECTIONS = {
       startTime: 'time', startPoint: 'text', destination: 'text', reason: 'text', status: 'text',
       createdAt: 'ts', reviewedAt: 'ts', reviewedBy: 'text', driverId: 'ref:drivers',
       carId: 'ref:cars', remarks: 'text',
+      cancelledAt: 'ts', cancelledBy: 'text', cancelReason: 'text',
     },
     required: [],
     refs: [['trips', 'reqId', 'logbook entries'], ['outbox', 'reqId', 'emails']],

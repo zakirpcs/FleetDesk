@@ -30,7 +30,7 @@ The role on the account decides what is allowed:
 
 | Role | Can do |
 |---|---|
-| `employee` | Submit a requisition, see and cancel own pending requests |
+| `employee` | Submit a requisition, see their own, and call one off themselves until the trip starts |
 | `ags` | Everything in inventory, logbook, fuel, reports; view requests (no approve/reject) |
 | `lead` | Everything `ags` can, plus approve/reject requests and change settings |
 
@@ -88,9 +88,10 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 
 **fuel**: `id, date, time, carId, driverId, cardId (nullable = cash), payment (Card | Cash, derived), fuelType, qty, unitPrice, amount (derived = qty × unitPrice, 2 dp), odometer, station, receiptNo`
 
-**requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks`
+**requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
+`remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
-**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection), reqId, to, cc, from, subject, html`
+**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html`
 
 **settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }`
 
@@ -109,10 +110,10 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 | POST | `/requisitions` | any | `name, designation, email, requiredDate, startTime, startPoint, destination, reason` | Creates `Pending`, assigns `reqNo`, emails the team lead (`notification`) |
 | POST | `/requisitions/{id}/approve` | lead | `driverId, carId, remarks?` | Must be `Pending`. Rejects with 409 if the driver or car has another `Approved` request on the same date within 3 hours. Sets `Approved`, `reviewedAt/By`, sends the **confirmation** email to the requester (cc team lead) |
 | POST | `/requisitions/{id}/reject` | lead | `remarks` (required) | Must be `Pending`. Sets `Rejected`, sends the **rejection** email |
-| POST | `/requisitions/{id}/cancel` | requester | | Only while `Pending` |
+| POST | `/requisitions/{id}/cancel` | requester, or AGS | `reason` (required once approved) | Allowed while `Pending`, and while `Approved` until the trip's start time passes. Sets `Cancelled` with `cancelledAt/By` and `cancelReason`; a cancelled booking no longer counts towards a clash, so the car and driver are free again. Cancelling an approved trip emails the team lead (`cancellation`, cc the requester). 409 once the trip has started or if it is already cancelled |
 | GET | `/requisitions/conflicts?date=&startTime=&driverId=&carId=&excludeId=` | lead | | Approved requests that would clash |
 
-`requiredDate` cannot be in the past. `GET /requisitions` returns only the caller's own requisitions when the role is `employee` — filtered by the session email, so no extra parameter is needed — and `cancel` refuses a request belonging to someone else.
+`requiredDate` cannot be in the past. Times are compared in the fleet's timezone (`TZ`, default Asia/Dhaka). `GET /requisitions` returns only the caller's own requisitions when the role is `employee` — filtered by the session email, so no extra parameter is needed — and `cancel` refuses a request belonging to someone else.
 
 ### Confirmation email fields
 

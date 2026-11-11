@@ -4,7 +4,10 @@ import { esc, byId, fmtDateTime } from '../utils.js';
 import { DataTable, openModal, pill, icon } from '../ui.js';
 import { emailHtml } from './reqshared.js';
 
-const KIND = { confirmation: ['Confirmation', 'Approved'], rejection: ['Rejection', 'Rejected'], notification: ['To team lead', 'Pending'] };
+const KIND = {
+  confirmation: ['Confirmation', 'Approved'], rejection: ['Rejection', 'Rejected'],
+  notification: ['To team lead', 'Pending'], cancellation: ['Cancellation', 'Cancelled'],
+};
 
 export async function render(el) {
   const data = await loadAll('outbox', 'requisitions');
@@ -13,7 +16,7 @@ export async function render(el) {
     ${CONFIG.USE_MOCK ? '<div class="callout warn" style="margin-bottom:14px">Demo mode: emails are recorded here but not actually sent. Once the backend is connected, they go out through your mail relay.</div>' : ''}
     <div class="toolbar">
       <div class="search">${icon.search}<input class="input" id="q" type="search" placeholder="Search recipient, subject" aria-label="Search emails"></div>
-      <select class="select" id="k" aria-label="Type"><option value="">All types</option><option value="confirmation">Confirmations</option><option value="rejection">Rejections</option><option value="notification">To team lead</option></select>
+      <select class="select" id="k" aria-label="Type"><option value="">All types</option><option value="confirmation">Confirmations</option><option value="rejection">Rejections</option><option value="notification">To team lead</option><option value="cancellation">Cancellations</option></select>
     </div>
     <section class="panel" id="tbl"></section>`;
   const filter = () => {

@@ -31,5 +31,6 @@ export function reqFacts(r, drivers = {}, cars = {}) {
     ${d ? `<dt>Driver</dt><dd>${esc(d.name)} · ${esc(d.mobile)}</dd>` : ''}
     ${c ? `<dt>Car</dt><dd>${plate(c.regNo)} <span class="muted">${esc(c.make)} ${esc(c.model)}</span></dd>` : ''}
     ${r.remarks ? `<dt>${r.status === 'Rejected' ? 'Reason given' : 'Remarks'}</dt><dd>${esc(r.remarks)}</dd>` : ''}
+    ${r.status === 'Cancelled' && r.cancelledAt ? `<dt>Cancelled</dt><dd>${esc(fmtDateTime(r.cancelledAt))}${r.cancelledBy ? ` by ${esc(r.cancelledBy)}` : ''}${r.cancelReason ? `<br><small class="muted">${esc(r.cancelReason)}</small>` : ''}</dd>` : ''}
   </dl>`;
 }

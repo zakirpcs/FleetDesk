@@ -8,13 +8,17 @@ import { coerce, serialise, selectList } from '../schema.js';
 import { uid, get } from '../store.js';
 import { getSettings } from '../settings.js';
 import { queue, deliverSoon } from '../mailer.js';
-import { confirmEmail, rejectEmail, newRequestEmail } from '../shared/email.js';
+import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from '../shared/email.js';
 
 const router = Router();
 const CLASH_MINUTES = 180;   // a driver or car booked within 3 hours counts as a clash
 const SUBMIT_FIELDS = ['name', 'designation', 'email', 'requiredDate', 'startTime', 'startPoint', 'destination', 'reason'];
 
-const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: process.env.TZ || 'Asia/Dhaka' });
+const TZ = process.env.TZ || 'Asia/Dhaka';
+const todayISO = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
+const nowHHMM = () => new Date().toLocaleTimeString('en-GB', { timeZone: TZ, hour12: false }).slice(0, 5);
+/** Has the trip already begun? Dates and times are compared in the fleet's own timezone. */
+const hasStarted = (req) => req.requiredDate < todayISO() || (req.requiredDate === todayISO() && req.startTime <= nowHHMM());
 
 /** CR-YYMM-NNN, numbered per calendar month. The advisory lock keeps two submissions apart. */
 async function nextReqNo(client, requiredDate) {
@@ -136,23 +140,47 @@ router.post('/:id/reject', requireRole('lead'), async (req, res) => {
   res.json(rejected);
 });
 
-// ---- Cancel (the requester, while it is still pending) ----------------------
+// ---- Cancel (the requester, up until the trip starts) -----------------------
+// Pending or approved: a requester can call off their own trip while it is still in
+// the future. Cancelling an approved one frees the car and driver — nothing else
+// holds them, since only approved requests count towards a clash — and tells AGS.
 router.post('/:id/cancel', async (req, res) => {
-  const out = await tx(async (client) => {
+  const reason = String(req.body?.reason || '').trim().slice(0, 300);
+  const settings = await getSettings();
+
+  const { cancelled, mailId } = await tx(async (client) => {
     const current = await lockRequisition(client, req.params.id);
-    if (!isStaff(req.user) && current.email.toLowerCase() !== req.user.email.toLowerCase()) {
-      throw new ApiError('You can only cancel your own requests.', 403);
+    const mine = current.email.toLowerCase() === req.user.email.toLowerCase();
+    if (!isStaff(req.user) && !mine) throw new ApiError('You can only cancel your own requests.', 403);
+
+    if (current.status === 'Cancelled') throw new ApiError('That request is already cancelled.', 409);
+    if (!['Pending', 'Approved'].includes(current.status)) {
+      throw new ApiError(`A ${current.status.toLowerCase()} request cannot be cancelled.`, 409);
     }
-    if (current.status !== 'Pending') {
-      throw new ApiError('Only pending requests can be cancelled here. Contact AGS for approved trips.', 409);
+    if (current.status === 'Approved') {
+      if (hasStarted(current)) {
+        throw new ApiError('That trip has already started. Call AGS if the car is no longer needed.', 409);
+      }
+      if (!reason) throw new ApiError('Give a short reason so AGS knows why the car is free again');
     }
+
     const { rows } = await client.query(
-      `UPDATE requisitions SET status = 'Cancelled' WHERE id = $1 RETURNING ${selectList('requisitions')}`,
-      [current.id],
+      `UPDATE requisitions
+          SET status = 'Cancelled', "cancelledAt" = now(), "cancelledBy" = $2, "cancelReason" = $3
+        WHERE id = $1 RETURNING ${selectList('requisitions')}`,
+      [current.id, req.user.name || req.user.email, reason],
     );
-    return serialise('requisitions', rows[0]);
+    const out = serialise('requisitions', rows[0]);
+
+    // AGS only needs telling when a car and driver had been committed to it.
+    if (current.status !== 'Approved') return { cancelled: out, mailId: null };
+    const driver = (await client.query('SELECT id, name, mobile FROM drivers WHERE id = $1', [out.driverId])).rows[0];
+    const car = (await client.query('SELECT id, "regNo" FROM cars WHERE id = $1', [out.carId])).rows[0];
+    return { cancelled: out, mailId: await queue(client, cancelEmail(out, driver, car, settings)) };
   });
-  res.json(out);
+
+  if (mailId) await deliverSoon([mailId]);
+  res.json(cancelled);
 });
 
 // ---- Clash check used by the approval screen --------------------------------
