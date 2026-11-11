@@ -1,6 +1,6 @@
 // Dashboard for AGS staff and team lead.
 import { loadAll } from '../api.js';
-import { esc, byId, num, bdt, fmtDate, fmtShort, fmtTime, today, addDays, thisMonth, sum, plate, fromISO } from '../utils.js';
+import { esc, byId, num, bdt, fmtDate, fmtShort, fmtTime, today, addDays, thisMonth, sum, plate, initials, fromISO } from '../utils.js';
 import { hbarChart, vbarChart, pill } from '../ui.js';
 import { overtimeDays, tripKm } from '../calc.js';
 import { papers } from './cars.js';
@@ -16,30 +16,50 @@ export async function render(el) {
     .sort((a, b) => (a.requiredDate + a.startTime).localeCompare(b.requiredDate + b.startTime));
   const ot = overtimeDays(monthTrips, data.drivers, data.settings);
 
-  // Where every car is right now. A car booked for today, or already out according to
-  // today's logbook, counts as on trip whatever its stored status says — so the desk
-  // sees what is actually free without anyone having to keep the status field current.
+  // Where every car and driver is right now. A car or driver booked for today, or
+  // already out according to today's logbook, counts as out whatever the stored status
+  // says — so the desk sees what is actually free without anyone having to keep those
+  // fields current.
   const todayTrips = data.trips.filter((t) => t.date === T);
   const bookedToday = data.requisitions.filter((r) => r.status === 'Approved' && r.requiredDate === T);
+  const shortPlate = (car) => (car ? car.regNo.slice(-7) : '');
+
   const fleet = { out: [], free: [], off: [] };
   for (const car of data.cars) {
     if (car.status === 'Retired') continue;
-    if (car.status === 'Maintenance') { fleet.off.push({ car, who: '', note: 'In maintenance' }); continue; }
+    const lead = plate(car.regNo);
+    if (car.status === 'Maintenance') { fleet.off.push({ lead, who: 'In maintenance', note: `${car.make} ${car.model}` }); continue; }
     const booking = bookedToday.find((r) => r.carId === car.id);
     const trip = todayTrips.find((t) => t.carId === car.id);
-    if (booking) fleet.out.push({ car, who: d[booking.driverId]?.name, note: `${fmtTime(booking.startTime)} · to ${booking.destination}` });
-    else if (trip) fleet.out.push({ car, who: d[trip.driverId]?.name, note: `out since ${fmtTime(trip.startTime)} · to ${trip.to}` });
-    else if (car.status === 'On trip') fleet.out.push({ car, who: d[car.driverId]?.name, note: 'marked on trip' });
-    else fleet.free.push({ car, who: d[car.driverId]?.name, note: [car.seats ? `${car.seats} seats` : '', car.fuelType].filter(Boolean).join(' · ') });
+    const who = (id) => d[id]?.name || 'No driver assigned';
+    if (booking) fleet.out.push({ lead, who: who(booking.driverId), note: `${fmtTime(booking.startTime)} · to ${booking.destination}` });
+    else if (trip) fleet.out.push({ lead, who: who(trip.driverId), note: `out since ${fmtTime(trip.startTime)} · to ${trip.to}` });
+    else if (car.status === 'On trip') fleet.out.push({ lead, who: who(car.driverId), note: 'marked on trip' });
+    else fleet.free.push({ lead, who: who(car.driverId), note: [car.seats ? `${car.seats} seats` : '', car.fuelType].filter(Boolean).join(' · ') });
   }
   const inService = fleet.out.length + fleet.free.length + fleet.off.length;
 
-  const fleetColumn = (status, list, empty) => `
+  const regularCar = {};
+  for (const car of data.cars) if (car.driverId) regularCar[car.driverId] = car;
+
+  const crew = { out: [], free: [], off: [] };
+  for (const dr of data.drivers) {
+    const lead = `<span class="avatar" aria-hidden="true">${initials(dr.name)}</span>`;
+    if (dr.status !== 'Active') { crew.off.push({ lead, who: dr.name, note: dr.status }); continue; }
+    const booking = bookedToday.find((r) => r.driverId === dr.id);
+    const trip = todayTrips.find((t) => t.driverId === dr.id);
+    if (booking) crew.out.push({ lead, who: dr.name, note: `${fmtTime(booking.startTime)} · ${shortPlate(c[booking.carId])} to ${booking.destination}` });
+    else if (trip) crew.out.push({ lead, who: dr.name, note: `out since ${fmtTime(trip.startTime)} · ${shortPlate(c[trip.carId])} to ${trip.to}` });
+    else crew.free.push({ lead, who: dr.name, note: [regularCar[dr.id] ? shortPlate(regularCar[dr.id]) : 'No regular car', dr.mobile].filter(Boolean).join(' · ') });
+  }
+  const onRoster = crew.out.length + crew.free.length + crew.off.length;
+
+  const nowColumn = (label, rows, empty, as = label) => `
     <div>
-      <div class="fleet-head">${pill(status)}<b>${list.length}</b></div>
-      ${list.length ? list.map(({ car, who, note }) => `
-        <div class="fleet-car">${plate(car.regNo)}
-          <div class="who">${esc(who || 'No regular driver')}<small>${esc(note || '')}</small></div>
+      <div class="fleet-head">${pill(label, as)}<b>${rows.length}</b></div>
+      ${rows.length ? rows.map(({ lead, who, note }) => `
+        <div class="fleet-car">${lead}
+          <div class="who">${esc(who)}<small>${esc(note || '')}</small></div>
         </div>`).join('') : `<p class="fleet-empty">${esc(empty)}</p>`}
     </div>`;
 
@@ -63,6 +83,7 @@ export async function render(el) {
     <div class="kpis">
       <a class="kpi" href="#approvals" style="color:inherit;text-decoration:none"><div class="kpi-label">Requests waiting</div><div class="kpi-value">${pending.length}</div><div class="kpi-note">${pending.length ? 'Open approvals' : 'All reviewed'}</div></a>
       <a class="kpi" href="#cars" style="color:inherit;text-decoration:none"><div class="kpi-label">Cars available now</div><div class="kpi-value">${fleet.free.length}<small>of ${inService}</small></div><div class="kpi-note">${fleet.out.length} on trip · ${fleet.off.length} in maintenance</div></a>
+      <a class="kpi" href="#drivers" style="color:inherit;text-decoration:none"><div class="kpi-label">Drivers available now</div><div class="kpi-value">${crew.free.length}<small>of ${onRoster}</small></div><div class="kpi-note">${crew.out.length} on duty · ${crew.off.length} on leave</div></a>
       <div class="kpi"><div class="kpi-label">Km run this month</div><div class="kpi-value">${num(sum(monthTrips, tripKm))}<small>km</small></div><div class="kpi-note">${monthTrips.length} logbook entries</div></div>
       <div class="kpi"><div class="kpi-label">Fuel spend this month</div><div class="kpi-value">${bdt(sum(monthFuel, (f) => f.amount))}</div><div class="kpi-note">${monthFuel.length} loads</div></div>
       <div class="kpi"><div class="kpi-label">Driver overtime this month</div><div class="kpi-value">${num(sum(ot, (x) => x.otMin) / 60)}<small>h</small></div><div class="kpi-note">${bdt(sum(ot, (x) => x.amount))}</div></div>
@@ -72,9 +93,20 @@ export async function render(el) {
       <div class="panel-head"><h2>Cars right now</h2><span class="spacer"></span><a href="#cars" class="muted">Car inventory</a></div>
       <div class="panel-body">
         <div class="grid grid-3 fleet-now">
-          ${fleetColumn('On trip', fleet.out, 'Every car is in.')}
-          ${fleetColumn('Available', fleet.free, 'Every car is out or off the road.')}
-          ${fleetColumn('Maintenance', fleet.off, 'Nothing off the road.')}
+          ${nowColumn('On trip', fleet.out, 'Every car is in.')}
+          ${nowColumn('Available', fleet.free, 'Every car is out or off the road.')}
+          ${nowColumn('Maintenance', fleet.off, 'Nothing off the road.')}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mt">
+      <div class="panel-head"><h2>Drivers right now</h2><span class="spacer"></span><a href="#drivers" class="muted">Driver list</a></div>
+      <div class="panel-body">
+        <div class="grid grid-3 fleet-now">
+          ${nowColumn('On duty', crew.out, 'Nobody is out yet today.', 'On trip')}
+          ${nowColumn('Available', crew.free, 'Every driver is out or away.')}
+          ${nowColumn('On leave', crew.off, 'Everyone is on the roster.')}
         </div>
       </div>
     </section>

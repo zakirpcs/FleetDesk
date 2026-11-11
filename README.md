@@ -9,7 +9,7 @@ mail relay.
 Nothing is loaded from the internet at runtime — the fonts are bundled — so it works
 on an isolated network.
 
-![The Fleet Desk dashboard: requests waiting and cars available now, then a panel showing which cars are on trip, available or in maintenance, trips booked for the next three days, papers and licences about to expire, and km charts](docs/screenshots/dashboard.png)
+![The Fleet Desk dashboard: cars and drivers available now, panels showing which cars are on trip, available or in maintenance and which drivers are on duty, free or on leave, trips booked for the next three days, papers and licences about to expire, and km charts](docs/screenshots/dashboard.png)
 
 ## What's in it
 
@@ -18,7 +18,7 @@ on an isolated network.
 | Request a car | Everyone | Requisition form: name, designation, email, date, start point, destination, starting time, reason |
 | My requests | Everyone | The user's requests and their status, the confirmation email they received, and cancelling while pending |
 | Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged), preview and send the confirmation email, or reject with a reason |
-| Dashboard | AGS | Which cars are on trip, available or in maintenance right now; waiting requests; trips booked for the next 3 days; expiring papers and licences; card limits; km charts |
+| Dashboard | AGS | Which cars are on trip, available or in maintenance and which drivers are on duty, free or on leave right now; waiting requests; trips booked for the next 3 days; expiring papers and licences; card limits; km charts |
 | Cars | AGS | Car inventory, regular driver, fuel card, papers expiry (fitness, tax token, insurance) |
 | Drivers | AGS | Driver inventory, licence expiry, OT rate, this month's duty days and overtime |
 | Payment cards | AGS | Card inventory (last 4 digits only), spending against the monthly limit, and the full fuel-load history per card |
