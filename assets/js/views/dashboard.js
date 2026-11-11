@@ -154,18 +154,29 @@ export async function render(el) {
         <span class="muted">${[cashSpend ? `${bdt(cashSpend)} also paid in cash` : '', inactiveCards ? `${inactiveCards} card${inactiveCards === 1 ? '' : 's'} not active` : ''].filter(Boolean).join(' · ')}</span>
         <span class="spacer"></span><a href="#cards" class="muted">Payment cards</a>
       </div>
-      <div class="panel-body">
-        ${cardLimits.length ? `<div class="grid grid-2 card-limits">${cardLimits.map(({ card, used, pct, left }) => `
-          <div class="card-limit">
-            <div class="card-limit-head">
-              <b>${esc(card.provider)} ••${esc(card.last4)}</b>
-              <span class="muted">${card.carId ? esc(c[card.carId]?.regNo.slice(-7) || '') : 'Pool card'}</span>
-              <span class="spacer"></span>
-              <span>${bdt(used)} <small class="muted">of ${bdt(card.monthlyLimit)}</small></span>
-            </div>
-            <div class="meter ${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}"><span style="width:${Math.min(100, pct)}%"></span></div>
-            <small class="muted">${Math.round(pct)}% used${card.monthlyLimit ? ` · ${left >= 0 ? `${bdt(left)} left` : `${bdt(-left)} over`}` : ' · no limit set'}</small>
-          </div>`).join('')}</div>`
+      <div class="panel-body" style="padding:8px 0 4px">
+        ${cardLimits.length ? `<div class="table-wrap"><table class="data card-limits">
+          <colgroup><col class="col-card"><col class="col-car"><col class="col-money"><col class="col-money"><col class="col-used"><col class="col-money"></colgroup>
+          <thead><tr>
+            <th>Card</th><th>Car</th>
+            <th class="num">Spent</th><th class="num">Limit</th>
+            <th>Used</th><th class="num">Left</th>
+          </tr></thead>
+          <tbody>${cardLimits.map(({ card, used, pct, left }) => `
+            <tr class="clickable" data-href="#cards" tabindex="0">
+              <td><b>${esc(card.provider)}</b> <span class="muted">••${esc(card.last4)}</span></td>
+              <td>${card.carId ? plate(c[card.carId]?.regNo) : '<span class="muted">Pool card</span>'}</td>
+              <td class="num">${bdt(used)}</td>
+              <td class="num">${card.monthlyLimit ? bdt(card.monthlyLimit) : '<span class="muted">—</span>'}</td>
+              <td class="usage">
+                <div class="meter ${pct >= 100 ? 'bad' : pct >= 80 ? 'warn' : ''}"><span style="width:${Math.min(100, pct)}%"></span></div>
+                <span class="usage-pct">${card.monthlyLimit ? `${Math.round(pct)}%` : '—'}</span>
+              </td>
+              <td class="num">${card.monthlyLimit
+                ? (left >= 0 ? bdt(left) : `<span class="over">${bdt(-left)} over</span>`)
+                : '<span class="muted">no limit set</span>'}</td>
+            </tr>`).join('')}</tbody>
+        </table></div>`
           : '<div class="empty">No active payment cards.</div>'}
       </div>
     </section>
