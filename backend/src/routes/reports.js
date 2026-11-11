@@ -91,6 +91,34 @@ router.get('/overtime', async (req, res) => {
     })));
 });
 
+// GET /reports/assignments?from=&to= → who drove which car, from the logbook and
+// from approved requests, one row per driver-and-car pairing.
+router.get('/assignments', async (req, res) => {
+  const from = date(req.query.from, 'from', '0001-01-01');
+  const to = date(req.query.to, 'to', '9999-12-31');
+  res.json(await rows(
+    `WITH events AS (
+       SELECT "driverId", "carId", date, greatest("endOdo" - "startOdo", 0) AS km, 'log' AS src
+         FROM trips
+        WHERE "driverId" IS NOT NULL AND date BETWEEN $1 AND $2
+       UNION ALL
+       SELECT "driverId", "carId", "requiredDate" AS date, 0 AS km, 'req' AS src
+         FROM requisitions
+        WHERE status = 'Approved' AND "driverId" IS NOT NULL AND "carId" IS NOT NULL
+          AND "requiredDate" BETWEEN $1 AND $2
+     )
+     SELECT "driverId", "carId",
+            count(*) FILTER (WHERE src = 'log')::int AS days,
+            count(*) FILTER (WHERE src = 'req')::int AS bookings,
+            round(coalesce(sum(km), 0), 1)::float8 AS km,
+            min(date) AS first, max(date) AS last
+       FROM events
+      GROUP BY "driverId", "carId"
+      ORDER BY days DESC, km DESC`,
+    [from, to],
+  ));
+});
+
 // GET /reports/card-usage?from=&to=
 router.get('/card-usage', async (req, res) => {
   const from = date(req.query.from, 'from', '0001-01-01');

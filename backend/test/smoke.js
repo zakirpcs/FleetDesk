@@ -271,10 +271,19 @@ async function main() {
     ['fuel-consumption', `/reports/fuel-consumption?month=${month}`],
     ['overtime', `/reports/overtime?month=${month}`],
     ['card-usage', '/reports/card-usage'],
+    ['assignments', '/reports/assignments'],
   ]) {
     const { status, data } = await call('GET', path);
     ok(`GET /reports/${name}`, status === 200 && Array.isArray(data), `${status} ${JSON.stringify(data).slice(0, 120)}`);
   }
+  const { data: pairings } = await call('GET', '/reports/assignments');
+  ok('the assignment report pairs drivers with cars', pairings.length > 0 && 'days' in pairings[0] && 'bookings' in pairings[0] && 'first' in pairings[0], JSON.stringify(pairings[0]));
+  const { data: logbookRows } = await call('GET', '/trips');
+  const byPair = {};
+  for (const t of logbookRows) if (t.driverId) byPair[`${t.driverId}|${t.carId}`] = (byPair[`${t.driverId}|${t.carId}`] || 0) + 1;
+  const top = pairings.slice().sort((a, b) => b.days - a.days)[0];
+  ok('its day counts match the logbook', byPair[`${top.driverId}|${top.carId}`] === top.days, `${top.days} reported vs ${byPair[`${top.driverId}|${top.carId}`]} in the logbook`);
+
   const { status: employeeReport } = await call('GET', '/reports/overtime?month=' + month, { role: 'employee' });
   ok('employee cannot read reports → 403', employeeReport === 403, String(employeeReport));
 

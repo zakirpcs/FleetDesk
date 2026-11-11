@@ -27,6 +27,7 @@ on an isolated network.
 | Running km | AGS | Km per car by week and by month |
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
+| Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
 | Email log | AGS | Every email sent (to the team lead, confirmations, rejections) |
 | Settings | Team lead | Approval contacts, shift and overtime rules, weekend days, holidays, fuel prices |
 

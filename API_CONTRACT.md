@@ -147,3 +147,4 @@ Reference implementation: `assets/js/calc.js`.
 - `GET /reports/fuel-consumption?month=YYYY-MM` → `[{ carId, km, qty, amount, loads, avg, prevAvg }]`
 - `GET /reports/overtime?month=YYYY-MM` → `[{ driverId, date, start, end, dutyMin, otMin, offDay, amount }]`
 - `GET /reports/card-usage?from=&to=` → `[{ cardId, loads, qty, amount }]`
+- `GET /reports/assignments?from=&to=` → `[{ driverId, carId, days, bookings, km, first, last }]` — one row per driver-and-car pairing, counting days from the logbook and bookings from approved requests
