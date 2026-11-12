@@ -9,6 +9,7 @@ export const icon = {
   close: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>',
   print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 9V4h10v5M7 17H5v-6h14v6h-2M7 14h10v6H7z"/></svg>',
+  key: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3M15.5 12v2"/></svg>',
 };
 
 // ---------------------------------------------------------------- printing
@@ -222,9 +223,11 @@ export class DataTable {
     const head = this.columns.map((c) => {
       const sortable = c.sortable !== false && c.label;
       const arrow = this.sortKey === c.key ? (this.sortDir === 'asc' ? '▲' : '▼') : '';
-      return `<th${sortable ? ` class="sortable${c.num ? ' num' : ''}" data-sort="${c.key}" aria-sort="${arrow ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}"` : c.num ? ' class="num"' : ''}${c.width ? ` style="width:${c.width}"` : ''}>${esc(c.label || '')}${arrow ? `<span class="arrow">${arrow}</span>` : ''}</th>`;
+      const cls = [c.num ? 'num' : '', c.className || ''].filter(Boolean).join(' ');
+      return `<th${sortable ? ` class="sortable${cls ? ` ${cls}` : ''}" data-sort="${c.key}" aria-sort="${arrow ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}"` : cls ? ` class="${cls}"` : ''}${c.width ? ` style="width:${c.width}"` : ''}>${esc(c.label || '')}${arrow ? `<span class="arrow">${arrow}</span>` : ''}</th>`;
     }).join('');
-    const body = rows.map((r) => `<tr data-id="${esc(r.id)}"${this.onRow ? ' class="clickable" tabindex="0"' : ''}>${this.columns.map((c) => `<td${c.num ? ' class="num"' : ''}>${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('');
+    const cellClass = (c) => [c.num ? 'num' : '', c.className || ''].filter(Boolean).join(' ');
+    const body = rows.map((r) => `<tr data-id="${esc(r.id)}"${this.onRow ? ' class="clickable" tabindex="0"' : ''}>${this.columns.map((c) => `<td${cellClass(c) ? ` class="${cellClass(c)}"` : ''}>${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('');
     const foot = this.foot && all.length ? `<tfoot><tr>${this.foot(all).map((v, i) => `<td${this.columns[i]?.num ? ' class="num"' : ''}>${v ?? ''}</td>`).join('')}</tr></tfoot>` : '';
     this.el.innerHTML = all.length
       ? `<div class="table-wrap"><table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>

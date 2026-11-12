@@ -50,12 +50,17 @@ export async function render(el, ctx) {
         { key: 'createdAt', label: 'Added', render: (u) => esc(fmtDate(String(u.createdAt).slice(0, 10))) },
         {
           key: 'a',
-          label: '',
+          label: 'Action',
+          className: 'col-actions',
           sortable: false,
+          // Icons, each with a name of its own so the button is never a mystery to
+          // anyone hovering it or reading the page aloud.
           render: (u) => `<div class="row-actions">
-            <button class="btn btn-sm" data-edit="${esc(u.id)}">Edit</button>
-            <button class="btn btn-sm" data-reset="${esc(u.id)}" title="Give this person a new one-time password">Reset password</button>
-            ${u.email === ctx.user.email ? '' : `<button class="btn btn-sm btn-danger" data-del="${esc(u.id)}">${icon.trash}</button>`}
+            <button class="icon-btn" data-edit="${esc(u.id)}" title="Edit ${esc(u.name)}" aria-label="Edit ${esc(u.name)}">${icon.edit}</button>
+            <button class="icon-btn" data-reset="${esc(u.id)}" title="Reset the password for ${esc(u.name)}" aria-label="Reset the password for ${esc(u.name)}">${icon.key}</button>
+            ${u.email === ctx.user.email
+              ? '<span class="icon-btn is-off" title="You cannot delete your own account" aria-hidden="true">' + icon.trash + '</span>'
+              : `<button class="icon-btn danger" data-del="${esc(u.id)}" title="Delete ${esc(u.name)}" aria-label="Delete ${esc(u.name)}">${icon.trash}</button>`}
           </div>`,
         },
       ],

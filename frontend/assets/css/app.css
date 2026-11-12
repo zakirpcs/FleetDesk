@@ -304,6 +304,11 @@ table.data tbody tr.clickable { cursor: pointer; }
 table.data .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.data tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
 .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+/* An actions column: heading sits over the buttons it belongs to. */
+table.data th.col-actions, table.data td.col-actions { text-align: right; white-space: nowrap; }
+.icon-btn.danger:hover { background: var(--danger-tint); color: var(--danger); }
+/* Shown but not offered — the action does not apply to this row. */
+.icon-btn.is-off { opacity: .25; cursor: default; }
 .empty { padding: 36px 16px; text-align: center; color: var(--ink-2); }
 .empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
 
