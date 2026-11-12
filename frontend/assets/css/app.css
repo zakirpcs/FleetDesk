@@ -435,9 +435,7 @@ dl.facts dd { margin: 0; font-weight: 500; }
 .tab[aria-current="page"] { color: var(--sign); border-bottom-color: var(--sign); }
 
 /* Dashboard: which cars are out, free or off the road. */
-/* Cars and drivers sit side by side, so each panel stacks its three states rather
-   than splitting a half-width panel three ways. */
-.fleet-now { display: grid; gap: 18px; }
+.fleet-now { gap: 16px 26px; }
 .fleet-head { display: flex; align-items: baseline; gap: 9px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
 .fleet-head b { font-family: var(--font-head); font-size: 19px; }
 .fleet-car { display: flex; align-items: center; gap: 11px; padding: 8px 0; }
