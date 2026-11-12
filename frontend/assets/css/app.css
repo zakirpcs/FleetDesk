@@ -566,4 +566,45 @@ dl.facts dd { margin: 0; font-weight: 500; }
   .page-wrap { max-width: none; padding: 0; }
   .page-crumb { color: #555; }
   body { background: #fff; }
+
+  /* Printing one document on its own: nothing but #printRoot goes to the paper. */
+  body.printing > *:not(#printRoot) { display: none !important; }
+  body.printing #printRoot { display: block !important; }
 }
+
+/* ---------- The slip the driver is handed ---------- */
+#printRoot { background: #fff; }
+.slip { max-width: 760px; margin: 0 auto; padding: 24px 26px; color: var(--ink); font-size: 14.5px; }
+.slip-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 14px; border-bottom: 2px solid var(--ink); }
+.slip-org { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.slip-head h1 { font-family: var(--font-head); font-size: 27px; margin: 2px 0 0; }
+.slip-no { text-align: right; line-height: 1.3; }
+.slip-no span { display: block; font-size: 12px; color: var(--ink-2); }
+.slip-no b { font-family: var(--font-head); font-size: 21px; }
+
+.slip-headline { display: flex; align-items: center; gap: 22px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.slip-driver b, .slip-when b { display: block; font-size: 18px; }
+.slip-driver span, .slip-when span { color: var(--ink-2); }
+.slip-when { margin-left: auto; text-align: right; }
+
+.slip-facts { width: 100%; border-collapse: collapse; margin: 6px 0; }
+.slip-facts th { width: 120px; text-align: left; font-weight: 500; color: var(--ink-2); padding: 8px 12px 8px 0; vertical-align: top; }
+.slip-facts td { padding: 8px 18px 8px 0; vertical-align: top; }
+.slip-facts tr + tr th, .slip-facts tr + tr td { border-top: 1px solid var(--line-soft); }
+
+.slip-log { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.slip-log h2 { font-family: var(--font-head); font-size: 15px; margin: 0 0 2px; color: var(--ink-2); }
+/* Four even columns, and no row dividers — they would sit on top of the dotted
+   lines the driver writes along. */
+.slip-log .slip-facts { table-layout: fixed; }
+.slip-log .slip-facts th { width: 22%; }
+.slip-log .slip-facts td { width: 28%; padding-top: 14px; }
+.slip-log .slip-facts tr + tr th, .slip-log .slip-facts tr + tr td { border-top: 0; }
+.slip-blank { border-bottom: 1px dotted var(--ink-3); }
+.slip-signatures { display: flex; gap: 28px; margin-top: 34px; font-size: 13px; color: var(--ink-2); }
+.slip-signatures div { flex: 1; }
+.slip-rule { display: block; border-top: 1px solid var(--ink-3); margin-bottom: 5px; }
+
+.slip-foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
+
+@page { margin: 14mm; }

@@ -1,6 +1,6 @@
 // Shared pieces for requisition views.
 import { esc, fmtDate, fmtTime, fmtDateTime, today, plate } from '../utils.js';
-import { pill } from '../ui.js';
+import { pill, printDocument } from '../ui.js';
 
 export const shownStatus = (r) => (r.status === 'Approved' && r.requiredDate < today() ? 'Completed' : r.status);
 
@@ -34,3 +34,69 @@ export function reqFacts(r, drivers = {}, cars = {}) {
     ${r.status === 'Cancelled' && r.cancelledAt ? `<dt>Cancelled</dt><dd>${esc(fmtDateTime(r.cancelledAt))}${r.cancelledBy ? ` by ${esc(r.cancelledBy)}` : ''}${r.cancelReason ? `<br><small class="muted">${esc(r.cancelReason)}</small>` : ''}</dd>` : ''}
   </dl>`;
 }
+
+/**
+ * The slip the driver is handed: who to collect, where to go, and who to call.
+ * The bottom half is left blank on purpose — the driver fills in times and odometer
+ * readings on the road, and AGS types them into the logbook afterwards.
+ */
+export function tripSlip(req, driver, car, settings = {}) {
+  const line = (label, value) => `<tr><th>${esc(label)}</th><td>${value}</td></tr>`;
+  return `<article class="slip">
+    <header class="slip-head">
+      <div>
+        <div class="slip-org">${esc(settings.orgName || 'Admin & General Services')}</div>
+        <h1>Car requisition slip</h1>
+      </div>
+      <div class="slip-no">
+        <span>Request no.</span>
+        <b>${esc(req.reqNo)}</b>
+      </div>
+    </header>
+
+    <div class="slip-headline">
+      ${car ? plate(car.regNo, 'lg') : '<span class="muted">No car assigned</span>'}
+      <div class="slip-driver">
+        <b>${esc(driver?.name || 'No driver assigned')}</b>
+        <span>${esc(driver?.mobile || '')}</span>
+      </div>
+      <div class="slip-when">
+        <b>${esc(fmtDate(req.requiredDate))}</b>
+        <span>${esc(fmtTime(req.startTime))}</span>
+      </div>
+    </div>
+
+    <table class="slip-facts">
+      ${line('Pick up from', esc(req.startPoint))}
+      ${line('Going to', esc(req.destination))}
+      ${line('Passenger', `${esc(req.name)}${req.designation ? `, ${esc(req.designation)}` : ''}<br><span class="muted">${esc(req.email)}</span>`)}
+      ${line('Purpose', esc(req.reason) || '<span class="muted">—</span>')}
+      ${car ? line('Car', `${esc(car.make)} ${esc(car.model)}${car.seats ? ` · ${esc(car.seats)} seats` : ''}${car.fuelType ? ` · ${esc(car.fuelType)}` : ''}`) : ''}
+      ${req.remarks ? line('Note from AGS', esc(req.remarks)) : ''}
+      ${line('Approved by', `${esc(req.reviewedBy || settings.teamLeadName || '')}${req.reviewedAt ? `<span class="muted"> · ${esc(fmtDateTime(req.reviewedAt))}</span>` : ''}`)}
+    </table>
+
+    <section class="slip-log">
+      <h2>To be filled in on the road</h2>
+      <table class="slip-facts">
+        <tr><th>Time out</th><td class="slip-blank"></td><th>Time in</th><td class="slip-blank"></td></tr>
+        <tr><th>Odometer out</th><td class="slip-blank"></td><th>Odometer in</th><td class="slip-blank"></td></tr>
+      </table>
+      <div class="slip-signatures">
+        <div><span class="slip-rule"></span>Driver</div>
+        <div><span class="slip-rule"></span>Passenger</div>
+        <div><span class="slip-rule"></span>AGS</div>
+      </div>
+    </section>
+
+    <footer class="slip-foot">
+      Hand this to the driver. Changes or cancellations: call AGS${settings.teamLeadEmail ? ` or write to ${esc(settings.teamLeadEmail)}` : ''}.
+      <span>Printed ${esc(fmtDateTime(new Date().toISOString()))}</span>
+    </footer>
+  </article>`;
+}
+
+/** True when there is something worth printing: a trip with a car and driver on it. */
+export const slipReady = (r) => r.status === 'Approved' && r.driverId && r.carId;
+
+export const printTripSlip = (req, driver, car, settings) => printDocument(tripSlip(req, driver, car, settings));

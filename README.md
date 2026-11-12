@@ -16,8 +16,8 @@ on an isolated network.
 | Page | Who sees it | Covers |
 |---|---|---|
 | Request a car | Everyone | Requisition form: name, designation, email, date, start point, destination, starting time, reason |
-| My requests | Everyone | The user's requests and their status, the confirmation email they received, and calling off a trip themselves — while it is still waiting, or after approval right up until it starts, which frees the car and driver and tells AGS why |
-| Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged), preview and send the confirmation email, or reject with a reason |
+| My requests | Everyone | The user's requests and their status, the confirmation email they received, the trip slip for a booked trip, and calling off a trip themselves — while it is still waiting, or after approval right up until it starts, which frees the car and driver and tells AGS why |
+| Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged), preview and send the confirmation email, or reject with a reason. A booked trip prints a slip for the driver |
 | Dashboard | AGS | Which cars are on trip, available or in maintenance and which drivers are on duty, free or on leave right now; waiting requests; trips booked for the next 3 days; expiring papers and licences; spend against each card's monthly limit; km charts |
 | Cars | AGS | Car inventory, regular driver, fuel card, papers expiry (fitness, tax token, insurance) |
 | Drivers | AGS | Driver inventory, licence expiry, OT rate, this month's duty days and overtime |
@@ -32,7 +32,10 @@ on an isolated network.
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
 | Settings | Team lead | Four tabs — approval contacts, shift and overtime rules, mail server, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
-Tables can be sorted and exported to CSV; reports can be printed.
+Tables can be sorted and exported to CSV; reports can be printed. A booked trip prints
+a one-page **trip slip** for the driver — the car, where to go, who to collect and who
+to call — with blanks for the times and odometer readings they bring back, which is
+what AGS types into the logbook afterwards.
 
 The top menu groups these pages by category. Its search box (`/` or Ctrl-K from
 anywhere) looks through the pages you can open and the records you are allowed to

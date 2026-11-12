@@ -2,7 +2,7 @@
 import { api, loadAll } from '../api.js';
 import { esc, byId, plate, today, pad } from '../utils.js';
 import { DataTable, pill, openModal, openForm, confirmDialog, toast, icon } from '../ui.js';
-import { shownStatus, when, reqFacts, emailHtml } from './reqshared.js';
+import { shownStatus, when, reqFacts, emailHtml, slipReady, printTripSlip } from './reqshared.js';
 
 /** A trip can be called off by the person who asked for it until it starts. */
 function cancellable(r) {
@@ -29,7 +29,7 @@ export async function render(el, ctx) {
     return q ? data.mine.filter((r) => [r.reqNo, r.startPoint, r.destination, r.reason, r.status].join(' ').toLowerCase().includes(q)) : data.mine;
   };
   const load = async () => {
-    data = await loadAll('requisitions', 'drivers', 'cars', 'outbox');
+    data = await loadAll('requisitions', 'drivers', 'cars', 'outbox', 'settings');
     data.d = byId(data.drivers); data.c = byId(data.cars);
     data.mine = data.requisitions.filter((r) => r.email.toLowerCase() === ctx.user.email.toLowerCase());
     if (table) table.setRows(filter()); else table = new DataTable(el.querySelector('#tbl'), {
@@ -81,7 +81,10 @@ export async function render(el, ctx) {
     openModal({
       title: `Request ${r.reqNo}`, wide: !!mail,
       body: `${reqFacts(r, data.d, data.c)}${mail ? `<h3 style="margin:20px 0 8px;font-size:16px">Email you received</h3>${emailHtml(mail)}` : ''}`,
-      foot: '<button class="btn" data-close>Close</button>',
+      foot: `${slipReady(r) ? `<button class="btn left" id="slip" type="button">${icon.print}Print trip slip</button>` : ''}<button class="btn" data-close>Close</button>`,
+      onMount(m) {
+        m.querySelector('#slip')?.addEventListener('click', () => printTripSlip(r, data.d[r.driverId], data.c[r.carId], data.settings));
+      },
     });
   }
 }

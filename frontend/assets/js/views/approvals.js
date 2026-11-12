@@ -1,9 +1,9 @@
 // Approvals — AGS team lead reviews requests, assigns driver + car, sends confirmation.
 import { api, loadAll } from '../api.js';
 import { esc, byId, plate, today, fmtTime, mins } from '../utils.js';
-import { DataTable, pill, openModal, toast, fieldHtml } from '../ui.js';
+import { DataTable, pill, openModal, toast, fieldHtml, icon } from '../ui.js';
 import { confirmEmail } from '../email.js';
-import { shownStatus, when, reqFacts, emailHtml } from './reqshared.js';
+import { shownStatus, when, reqFacts, emailHtml, slipReady, printTripSlip } from './reqshared.js';
 
 export async function render(el, ctx) {
   const canApprove = ctx.can('approve');
@@ -45,7 +45,14 @@ export async function render(el, ctx) {
         { key: 'route', label: 'Route', sortable: false, render: (r) => `${esc(r.startPoint)}<br><small class="muted">to ${esc(r.destination)}</small>` },
         { key: 'assigned', label: 'Assigned', sortable: false, render: (r) => r.carId ? `${plate(data.c[r.carId]?.regNo)}<br><small class="muted">${esc(data.d[r.driverId]?.name)}</small>` : '<span class="muted">—</span>' },
         { key: 'status', label: 'Status', render: (r) => pill(shownStatus(r)), sort: shownStatus },
-        { key: 'go', label: '', sortable: false, render: (r) => r.status === 'Pending' && canApprove ? `<div class="row-actions"><button class="btn btn-sm btn-primary" data-review="${esc(r.id)}">Review</button></div>` : '' },
+        {
+          key: 'go',
+          label: '',
+          sortable: false,
+          render: (r) => (r.status === 'Pending' && canApprove
+            ? `<div class="row-actions"><button class="btn btn-sm btn-primary" data-review="${esc(r.id)}">Review</button></div>`
+            : slipReady(r) ? `<div class="row-actions"><button class="btn btn-sm" data-slip="${esc(r.id)}" title="Print the slip for the driver">${icon.print}Slip</button></div>` : ''),
+        },
       ],
     });
   };
@@ -58,13 +65,29 @@ export async function render(el, ctx) {
     table.setRows(filter());
   });
   el.querySelector('#q').addEventListener('input', () => table.setRows(filter()));
-  el.addEventListener('click', (e) => { const b = e.target.closest('[data-review]'); if (b) review(b.dataset.review); });
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-review]');
+    if (b) return review(b.dataset.review);
+    const s = e.target.closest('[data-slip]');
+    if (!s) return;
+    e.stopPropagation();                       // printing, not opening the row
+    const r = data.requisitions.find((x) => x.id === s.dataset.slip);
+    printTripSlip(r, data.d[r.driverId], data.c[r.carId], data.settings);
+  });
 
   function review(id) {
     const r = data.requisitions.find((x) => x.id === id);
     if (r.status !== 'Pending' || !canApprove) {
       const mail = data.outbox.find((m) => m.reqId === id && m.kind !== 'notification');
-      return openModal({ title: `Request ${r.reqNo}`, wide: !!mail, body: reqFacts(r, data.d, data.c) + (mail ? `<h3 style="margin:20px 0 8px;font-size:16px">Email sent to requester</h3>${emailHtml(mail)}` : ''), foot: '<button class="btn" data-close>Close</button>' });
+      return openModal({
+        title: `Request ${r.reqNo}`,
+        wide: !!mail,
+        body: reqFacts(r, data.d, data.c) + (mail ? `<h3 style="margin:20px 0 8px;font-size:16px">Email sent to requester</h3>${emailHtml(mail)}` : ''),
+        foot: `${slipReady(r) ? `<button class="btn left" id="slip" type="button">${icon.print}Print trip slip</button>` : ''}<button class="btn" data-close>Close</button>`,
+        onMount(m) {
+          m.querySelector('#slip')?.addEventListener('click', () => printTripSlip(r, data.d[r.driverId], data.c[r.carId], data.settings));
+        },
+      });
     }
 
     // Bookings on the same day within 3 hours → flag in the dropdowns

@@ -11,6 +11,29 @@ export const icon = {
   print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 9V4h10v5M7 17H5v-6h14v6h-2M7 14h10v6H7z"/></svg>',
 };
 
+// ---------------------------------------------------------------- printing
+/**
+ * Print one document on its own: the markup goes into #printRoot and the print
+ * stylesheet hides everything else, so the page behind it never reaches the paper.
+ * No pop-up window, so nothing is blocked and the bundled fonts are already loaded.
+ */
+export function printDocument(html) {
+  const root = document.getElementById('printRoot');
+  root.innerHTML = html;
+  root.hidden = false;
+  document.body.classList.add('printing');
+  const done = () => {
+    document.body.classList.remove('printing');
+    root.hidden = true;
+    root.innerHTML = '';
+    window.removeEventListener('afterprint', done);
+  };
+  window.addEventListener('afterprint', done);
+  // Safari and some mobile browsers never fire afterprint; tidy up regardless.
+  setTimeout(() => { if (document.body.classList.contains('printing')) done(); }, 60_000);
+  window.print();
+}
+
 // ---------------------------------------------------------------- toasts
 export function toast(msg, kind = '') {
   const el = document.createElement('div');
