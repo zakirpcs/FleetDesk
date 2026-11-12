@@ -222,10 +222,9 @@ After changing anything under `assets/` or `backend/src/`, rebuild:
   `ROLE_GROUP_LEAD` and `ROLE_GROUP_AGS` onto team lead and AGS staff, treating everyone
   else as an employee. Only do this where that proxy is the only route to the API: the
   headers are trusted completely. See `backend/src/auth.js`.
-- **TLS.** Terminate it at the ingress in front of the frontend container, or use
-  `deploy/fleetdesk.conf` as the pattern. The frontend container speaks plain HTTP on
-  8080 and sets the security headers itself. Over HTTPS the session cookie is marked
-  Secure automatically; `COOKIE_SECURE=true` forces it.
+- **TLS.** Terminate it at the ingress in front of the frontend container, which
+  speaks plain HTTP on 8080 and sets the security headers itself. Over HTTPS the
+  session cookie is marked Secure automatically; `COOKIE_SECURE=true` forces it.
 - **Password.** Change `POSTGRES_PASSWORD` before the first start (it is baked into the
   volume at initialisation) and keep `.env` out of version control.
 - **Mail.** Point Fleet Desk at the company relay — **Settings → Mail server**, or
@@ -233,29 +232,6 @@ After changing anything under `assets/` or `backend/src/`, rebuild:
   demo mail. See [Mail](#mail).
 - **Card data.** Only the last four digits of a card are ever accepted or stored. The
   column has a check constraint to keep it that way.
-
-## Deploy without containers (RHEL 10.x)
-
-The frontend alone runs on plain Nginx with no Node.js on the server:
-
-```bash
-tar xzf fleet-frontend.tar.gz && cd fleet-frontend
-sudo bash deploy/install-rhel10.sh fleet.yourdomain.local
-```
-
-The script installs Nginx, copies the site to `/var/www/fleetdesk`, sets the SELinux
-context (`httpd_sys_content_t`), turns on `httpd_can_network_connect` for the API
-proxy, creates a self-signed certificate if none exists, installs
-`deploy/fleetdesk.conf`, and opens http/https in firewalld. Replace the self-signed
-certificate with one from your internal CA.
-
-Served this way the app starts in `mock` mode (data in the browser). To use the API,
-run the backend and database — containers, or Node 22 and PostgreSQL 17 directly —
-uncomment the `location /api/` block in `/etc/nginx/conf.d/fleetdesk.conf`, and set
-the meta tag in `/var/www/fleetdesk/index.html` to `api`.
-
-To update later, copy the new `index.html` and `assets/` into `/var/www/fleetdesk` and
-run `restorecon -R /var/www/fleetdesk`.
 
 ## Project layout
 
@@ -300,7 +276,6 @@ backend/test/smoke.js        End-to-end API test
 
 db/migrations/*.sql          Schema, applied in order by the API at startup
 docs/screenshots/            The images in this README
-deploy/                      Nginx config and RHEL 10 install script (no containers)
 API_CONTRACT.md              What the backend provides
 ```
 
