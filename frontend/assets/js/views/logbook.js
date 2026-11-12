@@ -30,7 +30,7 @@ export async function render(el) {
     { key: 'endOdo', label: 'End km', num: true, render: (t) => num(t.endOdo) },
     { key: 'km', label: 'Run (km)', num: true, render: (t) => `<b>${num(tripKm(t))}</b>`, sort: tripKm, csv: tripKm },
     { key: 'to', label: 'Route and purpose', render: (t) => `${esc(t.from)} to ${esc(t.to)}<br><small class="muted">${esc(t.purpose)}</small>`, csv: (t) => `${t.from} to ${t.to} (${t.purpose})` },
-    { key: 'a', label: '', sortable: false, render: (t) => actions(t.id) },
+    { key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (t) => actions(t.id) },
   ];
   const filter = () => {
     const f = $('#from').value, to = $('#to').value, car = $('#car').value, drv = $('#drv').value;

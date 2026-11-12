@@ -40,7 +40,8 @@ export async function render(el) {
       },
       {
         key: 'retry',
-        label: '',
+        label: 'Action',
+        className: 'col-actions',
         sortable: false,
         render: (m) => (m.status === 'Sent' ? '' : `<div class="row-actions"><button class="btn btn-sm" data-retry="${esc(m.id)}">Send again</button></div>`),
       },

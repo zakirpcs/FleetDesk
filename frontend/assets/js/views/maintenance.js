@@ -78,7 +78,7 @@ export async function render(el, ctx) {
     { key: 'workshop', label: 'Workshop', render: (m) => `${esc(m.workshop || '—')}${m.invoiceNo ? `<br><small class="muted">${esc(m.invoiceNo)}</small>` : ''}` },
     { key: 'cost', label: 'Cost', num: true, render: (m) => bdt(m.cost), csv: (m) => Number(m.cost).toFixed(2) },
     { key: 'next', label: 'Next due', render: dueCell, sort: (m) => Number(m.nextServiceOdo || 0), csv: (m) => m.nextServiceOdo || m.nextServiceDate || '' },
-    ...(ctx.can('manage') ? [{ key: 'a', label: '', sortable: false, render: (m) => actions(m.id) }] : []),
+    ...(ctx.can('manage') ? [{ key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (m) => actions(m.id) }] : []),
   ];
 
   function draw() {

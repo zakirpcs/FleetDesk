@@ -240,8 +240,10 @@ export const actions = (id, { edit = true, del = true } = {}) =>
   `<div class="row-actions">${edit ? `<button class="icon-btn" data-act="edit" data-id="${esc(id)}" aria-label="Edit" title="Edit">${icon.edit}</button>` : ''}${del ? `<button class="icon-btn" data-act="del" data-id="${esc(id)}" aria-label="Delete" title="Delete">${icon.trash}</button>` : ''}</div>`;
 
 // ---------------------------------------------------------------- CSV export
-export function downloadCsv(filename, columns, rows) {
+export function downloadCsv(filename, allColumns, rows) {
   const cell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  // Buttons are not data: a column of edit and delete icons has no place in a export.
+  const columns = allColumns.filter((c) => c.className !== 'col-actions' && c.csv !== false);
   const csv = [columns.map((c) => cell(c.label)).join(','), ...rows.map((r) => columns.map((c) => cell(c.csv ? c.csv(r) : r[c.key])).join(','))].join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));

@@ -47,7 +47,8 @@ export async function render(el, ctx) {
         { key: 'status', label: 'Status', render: (r) => pill(shownStatus(r)), sort: shownStatus },
         {
           key: 'go',
-          label: '',
+          label: 'Action',
+          className: 'col-actions',
           sortable: false,
           render: (r) => (r.status === 'Pending' && canApprove
             ? `<div class="row-actions"><button class="btn btn-sm btn-primary" data-review="${esc(r.id)}">Review</button></div>`

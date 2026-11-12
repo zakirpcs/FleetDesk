@@ -49,7 +49,7 @@ export async function render(el) {
         } },
         { key: 'expiry', label: 'Expires', render: (k) => { const s = expiryState(k.expiry); return s ? pill(fmtMonth(k.expiry), s) : esc(fmtMonth(k.expiry)); } },
         { key: 'status', label: 'Status', render: (k) => pill(k.status) },
-        { key: 'a', label: '', sortable: false, render: (k) => actions(k.id) },
+        { key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (k) => actions(k.id) },
       ],
     });
   };

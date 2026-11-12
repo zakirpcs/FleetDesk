@@ -48,7 +48,7 @@ export async function render(el) {
         { key: 'days', label: 'Duty days (month)', num: true, render: (d) => num(ot[d.id]?.days || 0), sort: (d) => ot[d.id]?.days || 0 },
         { key: 'ot', label: 'Overtime (month)', num: true, render: (d) => hrs(ot[d.id]?.otMin || 0), sort: (d) => ot[d.id]?.otMin || 0 },
         { key: 'status', label: 'Status', render: (d) => pill(d.status) },
-        { key: 'a', label: '', sortable: false, render: (d) => actions(d.id) },
+        { key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (d) => actions(d.id) },
       ],
     });
   };

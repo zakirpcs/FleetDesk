@@ -33,7 +33,7 @@ export async function render(el) {
     { key: 'amount', label: 'Amount', num: true, render: (f) => bdt2(f.amount) },
     { key: 'odometer', label: 'Odometer', num: true, render: (f) => num(f.odometer) },
     { key: 'station', label: 'Station', render: (f) => `${esc(f.station)}<br><small class="muted">${esc(f.receiptNo || '')}</small>` },
-    { key: 'a', label: '', sortable: false, render: (f) => actions(f.id) },
+    { key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (f) => actions(f.id) },
   ];
   const filter = () => {
     const fr = $('#from').value, to = $('#to').value, car = $('#car').value, card = $('#card').value;

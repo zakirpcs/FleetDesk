@@ -43,7 +43,7 @@ export async function render(el, ctx) {
         { key: 'car', label: 'Driver and car', sortable: false, render: (r) => r.driverId ? `<div class="who">${esc(data.d[r.driverId]?.name)}<small>${esc(data.d[r.driverId]?.mobile)}</small></div>` : '<span class="muted">Not assigned yet</span>' },
         { key: 'plate', label: '', sortable: false, render: (r) => r.carId ? plate(data.c[r.carId]?.regNo) : '' },
         { key: 'status', label: 'Status', render: (r) => pill(shownStatus(r)), sort: shownStatus },
-        { key: 'x', label: '', sortable: false, render: (r) => cancellable(r) ? `<div class="row-actions"><button class="btn btn-sm btn-danger" data-cancel="${esc(r.id)}">Cancel</button></div>` : '' },
+        { key: 'x', label: 'Action', className: 'col-actions', sortable: false, render: (r) => cancellable(r) ? `<div class="row-actions"><button class="btn btn-sm btn-danger" data-cancel="${esc(r.id)}">Cancel</button></div>` : '' },
       ],
     });
   };

@@ -35,7 +35,7 @@ export async function render(el, ctx) {
     { key: 'card', label: 'Fuel card', sortable: false, render: (c) => { const k = data.cards.find((x) => x.carId === c.id); return k ? `${esc(k.provider)} ••${esc(k.last4)}` : '<span class="muted">Pool / none</span>'; } },
     { key: 'papers', label: 'Papers', render: (c) => { const p = papers(c); return p.kind === 'Active' ? '<span class="muted">Up to date</span>' : pill(p.label, p.kind); }, sort: (c) => papers(c).kind },
     { key: 'status', label: 'Status', render: (c) => pill(c.status) },
-    { key: 'a', label: '', sortable: false, render: (c) => actions(c.id) },
+    { key: 'a', label: 'Action', className: 'col-actions', sortable: false, render: (c) => actions(c.id) },
   ];
   const filter = () => {
     const q = el.querySelector('#q').value.trim().toLowerCase(), st = el.querySelector('#st').value;
