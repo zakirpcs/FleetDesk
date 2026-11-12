@@ -38,7 +38,7 @@ export const COLLECTIONS = {
       ownership: ['Owned', 'Rented', 'Leased'],
       status: ['Available', 'On trip', 'Maintenance', 'Retired'],
     },
-    refs: [['trips', 'carId', 'logbook entries'], ['fuel', 'carId', 'fuel entries'], ['requisitions', 'carId', 'requisitions'], ['cards', 'carId', 'payment cards']],
+    refs: [['trips', 'carId', 'logbook entries'], ['fuel', 'carId', 'fuel entries'], ['requisitions', 'carId', 'requisitions'], ['cards', 'carId', 'payment cards'], ['maintenance', 'carId', 'workshop records']],
   },
 
   cards: {
@@ -83,6 +83,20 @@ export const COLLECTIONS = {
     enums: { fuelType: ['Octane', 'Petrol', 'Diesel', 'CNG'] },
     // `payment` and `amount` are derived server-side, never taken from the client.
     derived: ['payment', 'amount'],
+    refs: [],
+  },
+
+  maintenance: {
+    idPrefix: 'm',
+    writable: true,
+    order: 'date DESC',
+    fields: {
+      date: 'date', carId: 'ref:cars', kind: 'text', odometer: 'num', workshop: 'text',
+      description: 'text', cost: 'num', invoiceNo: 'text',
+      nextServiceDate: 'date', nextServiceOdo: 'num', notes: 'text',
+    },
+    required: ['date', 'carId', 'kind'],
+    enums: { kind: ['Service', 'Repair', 'Tyres', 'Battery', 'Bodywork', 'Inspection', 'Other'] },
     refs: [],
   },
 

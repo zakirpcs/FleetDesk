@@ -16,6 +16,7 @@ const I = {
   logbook: P('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>'),
   fuel: P('<path d="M4 20V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v15M3 20h12M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3M7 8h4"/>'),
   mileage: P('<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/>'),
+  maintenance: P('<path d="M15.5 4.5a4.5 4.5 0 0 0-6 5.9L4 15.9V20h4.1l5.5-5.5a4.5 4.5 0 0 0 5.9-6l-2.8 2.8-2.1-2.1z"/>'),
   consumption: P('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   overtime: P('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>'),
   outbox: P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
@@ -38,6 +39,7 @@ export const ROUTES = [
   { path: 'cards', title: 'Payment cards', group: 'Inventory', roles: STAFF, load: () => import('./views/cards.js') },
   { path: 'logbook', title: 'Daily logbook', group: 'Daily records', roles: STAFF, load: () => import('./views/logbook.js') },
   { path: 'fuel', title: 'Fuel loads', group: 'Daily records', roles: STAFF, load: () => import('./views/fuel.js') },
+  { path: 'maintenance', title: 'Servicing and repairs', group: 'Daily records', roles: STAFF, load: () => import('./views/maintenance.js') },
   { path: 'mileage', title: 'Running km', group: 'Reports', roles: STAFF, load: () => import('./views/mileage.js') },
   { path: 'consumption', title: 'Fuel consumption', group: 'Reports', roles: STAFF, load: () => import('./views/consumption.js') },
   { path: 'overtime', title: 'Driver overtime', group: 'Reports', roles: STAFF, load: () => import('./views/overtime.js') },
@@ -232,6 +234,14 @@ const SOURCES = [
     params: (t) => ({ from: t.date, to: t.date, car: t.carId }),
   },
   {
+    name: 'maintenance', type: 'Workshop visit', roles: STAFF, icon: 'maintenance', page: () => 'maintenance',
+    when: (x) => x.date,
+    title: (x, look) => `${fmtDate(x.date)} · ${look.cars[x.carId]?.regNo || 'Unknown car'}`,
+    sub: (x) => [x.kind, x.description, x.workshop, x.cost ? bdt(x.cost) : ''].filter(Boolean).join(' · '),
+    terms: (x, look) => [x.date, fmtDate(x.date), look.cars[x.carId]?.regNo, x.kind, x.workshop, x.description, x.invoiceNo],
+    params: (x) => ({ from: x.date, to: x.date, car: x.carId }),
+  },
+  {
     name: 'fuel', type: 'Fuel load', roles: STAFF, icon: 'fuel', page: () => 'fuel',
     when: (f) => f.date,
     title: (f, look) => `${fmtDate(f.date)} · ${look.cars[f.carId]?.regNo || 'Unknown car'}`,
@@ -246,6 +256,7 @@ const SOURCES = [
 const TYPE_LABEL = {
   Page: 'Pages', Request: 'Requests', Car: 'Cars', Driver: 'Drivers',
   'Payment card': 'Payment cards', 'Logbook entry': 'Logbook entries', 'Fuel load': 'Fuel loads',
+  'Workshop visit': 'Workshop visits',
 };
 const TYPE_ORDER = Object.keys(TYPE_LABEL);
 const PER_TYPE = 4, MAX_RESULTS = 14, SEARCH_TTL = 30_000;

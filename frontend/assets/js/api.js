@@ -22,7 +22,7 @@ export const CONFIG = {
   onUnauthorized: null,
 };
 
-export const COLLECTIONS = ['drivers', 'cars', 'cards', 'trips', 'fuel', 'requisitions', 'outbox'];
+export const COLLECTIONS = ['drivers', 'cars', 'cards', 'trips', 'fuel', 'maintenance', 'requisitions', 'outbox'];
 
 export class ApiError extends Error {
   constructor(message, status = 400, details) { super(message); this.status = status; this.details = details; }
@@ -60,7 +60,7 @@ const find = (name, id) => { const x = coll(name).find((r) => r.id === id); if (
 
 const REFS = {
   drivers: [['trips', 'driverId', 'logbook entries'], ['fuel', 'driverId', 'fuel entries'], ['requisitions', 'driverId', 'requisitions']],
-  cars: [['trips', 'carId', 'logbook entries'], ['fuel', 'carId', 'fuel entries'], ['requisitions', 'carId', 'requisitions']],
+  cars: [['trips', 'carId', 'logbook entries'], ['fuel', 'carId', 'fuel entries'], ['requisitions', 'carId', 'requisitions'], ['maintenance', 'carId', 'workshop records']],
   cards: [['fuel', 'cardId', 'fuel loads']],
 };
 
@@ -96,13 +96,14 @@ function afterWrite(name, rec) {
     rec.amount = Math.round(Number(rec.qty) * Number(rec.unitPrice) * 100) / 100;
     rec.payment = rec.cardId ? 'Card' : 'Cash';
   }
-  const odo = name === 'trips' ? Number(rec.endOdo) : name === 'fuel' ? Number(rec.odometer) : 0;
+  const odo = name === 'trips' ? Number(rec.endOdo) : ['fuel', 'maintenance'].includes(name) ? Number(rec.odometer) : 0;
   if (odo) { const car = d.cars.find((c) => c.id === rec.carId); if (car && odo > Number(car.odometer || 0)) car.odometer = odo; }
 }
 
 const NUMERIC = {
   drivers: ['otRate'], cars: ['year', 'tankCapacity', 'odometer', 'seats'], cards: ['monthlyLimit'],
   trips: ['startOdo', 'endOdo'], fuel: ['qty', 'unitPrice', 'odometer'],
+  maintenance: ['odometer', 'cost', 'nextServiceOdo'],
 };
 const coerce = (name, rec) => { for (const k of NUMERIC[name] || []) if (rec[k] !== undefined && rec[k] !== '') rec[k] = Number(rec[k]); return rec; };
 

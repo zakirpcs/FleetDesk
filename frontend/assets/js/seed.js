@@ -118,6 +118,53 @@ export function seed() {
   }
   for (const c of cars) if (state[c.id]) c.odometer = state[c.id].odo;
 
+  // ---- Workshop history ----
+  // A service every few thousand km, plus the odd repair, so each car has a history
+  // and one or two are due again soon.
+  const workshops = ['Navana Toyota, Tejgaon', 'Rangs Workshop, Tejgaon', 'Uttara Motors Service Centre', 'Asian Auto Care, Mohakhali', 'Executive Motors, Banani'];
+  const serviceJobs = ['Engine oil and filter', 'Full service: oil, filters, brake fluid', 'Brake pads and discs', 'Wheel alignment and balancing', 'Air-conditioner service', 'Suspension check and bush replacement'];
+  const repairJobs = ['Alternator replaced', 'Radiator leak repaired', 'Starter motor replaced', 'Windscreen replaced', 'Clutch plate replaced'];
+  const maintenance = [];
+  let mId = 1;
+  for (const c of cars) {
+    const st = state[c.id];
+    if (!st) continue;
+    const interval = 3000 + Math.round(between(0, 1200) / 100) * 100;      // km between services
+    // Walk back from the last service, which is recent enough that the next one is
+    // either due soon or not far off — the spread the dashboard warns about.
+    let odo = st.odo - Math.round(between(200, interval));
+    while (odo > profile[c.id].startOdo) {
+      const ago = Math.max(1, Math.round(((st.odo - odo) / profile[c.id].km) * 1.1));
+      const date = addDays(T, -Math.min(94, ago));
+      maintenance.push({
+        id: 'm' + mId++, date, carId: c.id, kind: 'Service',
+        odometer: Math.round(odo), workshop: pick(workshops), description: pick(serviceJobs),
+        cost: Math.round(between(4500, 16000) / 50) * 50, invoiceNo: 'INV-' + Math.floor(between(10000, 99999)),
+        nextServiceDate: '', nextServiceOdo: Math.round(odo + interval), notes: '',
+      });
+      odo -= interval;
+    }
+    if (r() < 0.55) {
+      maintenance.push({
+        id: 'm' + mId++, date: addDays(T, -Math.round(between(5, 80))), carId: c.id, kind: pick(['Repair', 'Tyres', 'Battery']),
+        odometer: Math.round(st.odo - between(200, 3000)), workshop: pick(workshops), description: pick(repairJobs),
+        cost: Math.round(between(3000, 42000) / 50) * 50, invoiceNo: 'INV-' + Math.floor(between(10000, 99999)),
+        nextServiceDate: '', nextServiceOdo: null, notes: '',
+      });
+    }
+  }
+  // The car in the workshop today has an open job against it.
+  const inShop = cars.find((c) => c.status === 'Maintenance');
+  if (inShop) {
+    maintenance.push({
+      id: 'm' + mId++, date: addDays(T, -3), carId: inShop.id, kind: 'Repair',
+      odometer: inShop.odometer, workshop: 'Rangs Workshop, Tejgaon',
+      description: 'Gearbox overhaul — car off the road', cost: 68500, invoiceNo: '',
+      nextServiceDate: '', nextServiceOdo: null, notes: 'Expected back at the end of the week',
+    });
+  }
+  maintenance.sort((a, b) => b.date.localeCompare(a.date));
+
   // ---- Requisitions ----
   const people = [
     { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: 'tahmina.akter@company.local' },
@@ -163,5 +210,5 @@ export function seed() {
     requisitions.push(req);
   });
 
-  return { version: 1, settings, drivers, cars, cards, trips, fuel, requisitions, outbox };
+  return { version: 1, settings, drivers, cars, cards, trips, fuel, maintenance, requisitions, outbox };
 }

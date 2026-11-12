@@ -21,7 +21,7 @@ export const DEMO_USERS = [
   { email: 'ags.lead@company.local', name: 'Shafiqul Alam', designation: 'Team Lead, AGS', role: 'lead' },
 ];
 
-const TABLES = ['outbox', 'fuel', 'trips', 'requisitions', 'cards', 'cars', 'drivers'];   // child → parent
+const TABLES = ['outbox', 'fuel', 'maintenance', 'trips', 'requisitions', 'cards', 'cars', 'drivers'];   // child → parent
 const OUTBOX_FIELDS = ['sentAt', 'status', 'kind', 'reqId', 'to', 'cc', 'from', 'subject', 'html'];
 
 export async function ensureUsers(client) {
@@ -106,7 +106,7 @@ export async function seedDemoData({ force = false } = {}) {
 
     const out = {};
     // Parent → child, so every reference exists by the time it is used.
-    for (const name of ['drivers', 'cars', 'cards', 'requisitions', 'trips', 'fuel']) {
+    for (const name of ['drivers', 'cars', 'cards', 'requisitions', 'trips', 'fuel', 'maintenance']) {
       for (const rec of data[name]) await insert(client, name, { ...coerce(name, rec, 'create'), id: rec.id });
       out[name] = data[name].length;
     }

@@ -4,13 +4,15 @@ import { esc, byId, num, bdt, fmtDate, fmtShort, fmtTime, today, addDays, thisMo
 import { hbarChart, vbarChart, pill } from '../ui.js';
 import { overtimeDays, tripKm } from '../calc.js';
 import { papers } from './cars.js';
+import { serviceDue } from './maintenance.js';
 
 export async function render(el) {
-  const data = await loadAll('cars', 'drivers', 'cards', 'trips', 'fuel', 'requisitions', 'settings');
+  const data = await loadAll('cars', 'drivers', 'cards', 'trips', 'fuel', 'maintenance', 'requisitions', 'settings');
   const c = byId(data.cars), d = byId(data.drivers);
   const T = today(), m = thisMonth();
   const monthTrips = data.trips.filter((t) => t.date.startsWith(m));
   const monthFuel = data.fuel.filter((f) => f.date.startsWith(m));
+  const monthWorkshop = data.maintenance.filter((x) => x.date.startsWith(m));
   const pending = data.requisitions.filter((r) => r.status === 'Pending');
   const upcoming = data.requisitions.filter((r) => r.status === 'Approved' && r.requiredDate >= T && r.requiredDate <= addDays(T, 2))
     .sort((a, b) => (a.requiredDate + a.startTime).localeCompare(b.requiredDate + b.startTime));
@@ -94,6 +96,11 @@ export async function render(el) {
     if (k.monthlyLimit && used / k.monthlyLimit >= 0.8) alerts.push({ sev: used >= k.monthlyLimit ? 'Expired' : 'Expiring soon', html: `${esc(k.provider)} card ••${esc(k.last4)} has used ${Math.round((used / k.monthlyLimit) * 100)}% of its monthly limit`, link: '#cards' });
   }
   for (const car of data.cars.filter((x) => x.status === 'Maintenance')) alerts.push({ sev: 'Pending', html: `${plate(car.regNo)} is in maintenance`, link: '#cars' });
+  for (const car of data.cars.filter((x) => x.status !== 'Retired')) {
+    const due = serviceDue(car, data.maintenance);
+    if (due?.state === 'due') alerts.push({ sev: 'Expired', html: `${plate(car.regNo)} service ${esc(due.label)}`, link: '#maintenance' });
+    else if (due?.state === 'soon') alerts.push({ sev: 'Expiring soon', html: `${plate(car.regNo)} service due ${esc(due.label)}`, link: '#maintenance' });
+  }
   alerts.sort((a, b) => (a.sev === 'Expired' ? 0 : 1) - (b.sev === 'Expired' ? 0 : 1));
 
   el.innerHTML = `
@@ -103,6 +110,7 @@ export async function render(el) {
       <a class="kpi" href="#drivers" style="color:inherit;text-decoration:none"><div class="kpi-label">Drivers available now</div><div class="kpi-value">${crew.free.length}<small>of ${onRoster}</small></div><div class="kpi-note">${crew.out.length} on duty · ${crew.off.length} on leave</div></a>
       <div class="kpi"><div class="kpi-label">Km run this month</div><div class="kpi-value">${num(sum(monthTrips, tripKm))}<small>km</small></div><div class="kpi-note">${monthTrips.length} logbook entries</div></div>
       <a class="kpi" href="#cards" style="color:inherit;text-decoration:none"><div class="kpi-label">Fuel spend this month</div><div class="kpi-value">${bdt(sum(monthFuel, (f) => f.amount))}</div><div class="kpi-note">${monthFuel.length} loads · ${bdt(cardHeadroom)} left on cards</div></a>
+      <a class="kpi" href="#maintenance" style="color:inherit;text-decoration:none"><div class="kpi-label">Workshop this month</div><div class="kpi-value">${bdt(sum(monthWorkshop, (x) => x.cost))}</div><div class="kpi-note">${monthWorkshop.length} job${monthWorkshop.length === 1 ? '' : 's'}</div></a>
       <div class="kpi"><div class="kpi-label">Driver overtime this month</div><div class="kpi-value">${num(sum(ot, (x) => x.otMin) / 60)}<small>h</small></div><div class="kpi-note">${bdt(sum(ot, (x) => x.amount))}</div></div>
     </div>
 

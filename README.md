@@ -24,6 +24,7 @@ on an isolated network.
 | Payment cards | AGS | Card inventory (last 4 digits only), spending against the monthly limit, and the full fuel-load history per card |
 | Daily logbook | AGS | One entry per car per day: driver, duty start and end, odometer at start and end |
 | Fuel loads | AGS | Every refuel with the card used, plus a by-card summary |
+| Servicing and repairs | AGS | Every workshop visit — what was done, what it cost, the odometer at the time — and when each car is next due, which the dashboard warns about |
 | Running km | AGS | Km per car by week and by month |
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
@@ -287,7 +288,7 @@ backend/                      The REST API
 ├── package.json              start · seed · smoke · shared
 └── Dockerfile                API image (Node 22)
 
-db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance
 docs/screenshots/             The images in this README
 API_CONTRACT.md               What the backend provides
 LICENSE                       MIT

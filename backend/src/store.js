@@ -72,7 +72,7 @@ function derive(name, rec) {
 
 /** A trip or fuel reading can only move a car's odometer forward. */
 async function bumpOdometer(client, name, rec) {
-  const reading = name === 'trips' ? Number(rec.endOdo) : name === 'fuel' ? Number(rec.odometer) : 0;
+  const reading = name === 'trips' ? Number(rec.endOdo) : ['fuel', 'maintenance'].includes(name) ? Number(rec.odometer) : 0;
   if (!reading || !rec.carId) return;
   await q(client, 'UPDATE cars SET odometer = $1 WHERE id = $2 AND odometer < $1', [reading, rec.carId]);
 }

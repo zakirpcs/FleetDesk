@@ -61,7 +61,7 @@ Passwords are stored as scrypt hashes (`backend/src/password.js`) and never retu
 
 ## Generic CRUD
 
-For each collection `drivers`, `cars`, `cards`, `trips`, `fuel`:
+For each collection `drivers`, `cars`, `cards`, `trips`, `fuel`, `maintenance`:
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -90,6 +90,9 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 
 **fuel**: `id, date, time, carId, driverId, cardId (nullable = cash), payment (Card | Cash, derived), fuelType, qty, unitPrice, amount (derived = qty × unitPrice, 2 dp), odometer, station, receiptNo`
 
+**maintenance** (servicing and repairs): `id, date, carId, kind (Service | Repair | Tyres | Battery | Bodywork | Inspection | Other), odometer, workshop, description, cost, invoiceNo, nextServiceDate, nextServiceOdo, notes`
+`nextServiceOdo` and `nextServiceDate` are what the garage advised; the most recent record that carries either is what the service reminder reads. Staff only — an employee gets 403.
+
 **requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
 `remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
@@ -110,8 +113,8 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 - Unique: `drivers.empId`, `drivers.licenseNo`, `cars.regNo` → 409
 - `trips`: `endOdo ≥ startOdo`; `endTime > startTime`; one entry per car per date → 409
 - `fuel`: `qty > 0`; the card, if given, must be `Active` → 400
-- After a trip or fuel write, raise `cars.odometer` to the new reading if it is higher
-- DELETE on a driver, car or card that is referenced by trips, fuel or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
+- After a trip, fuel or maintenance write, raise `cars.odometer` to the new reading if it is higher
+- DELETE on a driver, car or card that is referenced by trips, fuel, maintenance or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
 
 ## Requisition workflow
 

@@ -139,6 +139,19 @@ async function main() {
   const { status: zero } = await call('POST', '/fuel', { body: { date: addDays(-403), carId: car.id, time: '10:00', fuelType: car.fuelType, qty: 0, unitPrice: 100 } });
   ok('qty 0 → 400', zero === 400, String(zero));
 
+  // ---- servicing and repairs
+  const { status: ms, data: job } = await call('POST', '/maintenance', {
+    body: { date: addDays(-30), carId: car.id, kind: 'Service', odometer: 1180, workshop: 'Smoke Motors', description: 'Oil and filters', cost: 9450.75, invoiceNo: 'SM-1', nextServiceOdo: 6180 },
+  });
+  ok('POST /maintenance', ms === 201 && job?.id, JSON.stringify(job));
+  ok('an odd cost is kept to the paisa', job?.cost === 9450.75, String(job?.cost));
+  ok('invalid kind → 400', (await call('POST', '/maintenance', { body: { date: addDays(-30), carId: car.id, kind: 'Overhaul' } })).status === 400);
+  ok('a workshop reading moves the car odometer', (await call('GET', `/cars/${car.id}`)).data.odometer === 1180, String((await call('GET', `/cars/${car.id}`)).data.odometer));
+  ok('employees cannot see the workshop records → 403', (await call('GET', '/maintenance', { role: 'employee' })).status === 403);
+  const { data: carGone } = await call('DELETE', `/cars/${car.id}`);
+  ok('a car with workshop history cannot be deleted', /workshop records|logbook entries|fuel entries/.test(carGone?.message || ''), carGone?.message);
+  ok('DELETE /maintenance/:id', (await call('DELETE', `/maintenance/${job.id}`)).status === 204);
+
   // ---- requisition workflow
   const { status: rs, data: reqn } = await call('POST', '/requisitions', {
     role: 'employee',
