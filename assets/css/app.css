@@ -415,10 +415,19 @@ dl.facts dd { margin: 0; font-weight: 500; }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
 
 /* Page tabs: the sections of one page. Links where each tab is its own page,
-   buttons where they are parts of a single form. */
-.tabs { display: flex; gap: 2px; margin: -4px 0 18px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+   buttons where they are parts of a single form.
+   The divider is a shadow, not a border, so no negative margin is needed to sit the
+   active tab's underline on it — a negative margin would leave the strip 1px taller
+   than its box, and since overflow-x:auto forces overflow-y to auto as well, that
+   single pixel is enough for a browser to draw a vertical scrollbar here.
+   overflow-y:clip says so outright. */
+.tabs {
+  display: flex; gap: 2px; margin: -4px 0 18px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  overflow-x: auto; overflow-y: clip;
+}
 .tab {
-  padding: 9px 14px 10px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  padding: 9px 14px 10px; border: 0; border-bottom: 3px solid transparent;
   background: none; font: inherit; font-weight: 600; cursor: pointer;
   color: var(--ink-2); text-decoration: none; white-space: nowrap;
 }
