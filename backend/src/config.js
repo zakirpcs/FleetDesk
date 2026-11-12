@@ -31,6 +31,21 @@ export const config = {
   demoPassword: process.env.DEMO_PASSWORD || 'FleetDesk-2026',
   showDemoAccounts: bool(process.env.SHOW_DEMO_ACCOUNTS, bool(process.env.SEED_DEMO_DATA, false)),
 
+  // The SMS gateway, when it is configured by environment rather than on the
+  // Settings page. Same placeholders: {to} {text} {sender} {apiKey}.
+  sms: {
+    url: process.env.SMS_URL || '',
+    method: process.env.SMS_METHOD || 'GET',
+    headers: process.env.SMS_HEADERS || '',
+    body: process.env.SMS_BODY || '',
+    sender: process.env.SMS_SENDER || '',
+    apiKey: process.env.SMS_API_KEY || '',
+    numberFormat: process.env.SMS_NUMBER_FORMAT || 'digits',
+    countryCode: process.env.SMS_COUNTRY_CODE || '880',
+    successText: process.env.SMS_SUCCESS_TEXT || '',
+    timeoutMs: int(process.env.SMS_TIMEOUT_MS, 12000),
+  },
+
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: int(process.env.SMTP_PORT, 25),

@@ -121,8 +121,8 @@ export const COLLECTIONS = {
     writable: false,
     order: '"sentAt" DESC',
     fields: {
-      sentAt: 'ts', status: 'text', kind: 'text', reqId: 'ref:requisitions',
-      to: 'text', cc: 'text', from: 'text', subject: 'text', html: 'text',
+      sentAt: 'ts', channel: 'text', status: 'text', kind: 'text', reqId: 'ref:requisitions',
+      to: 'text', cc: 'text', from: 'text', subject: 'text', html: 'text', text: 'text',
       attempts: 'int', error: 'text',
     },
     required: [],

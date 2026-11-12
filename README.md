@@ -29,7 +29,7 @@ on an isolated network.
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
-| Email log | AGS | Every email sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again |
+| Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again |
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
 | Settings | Team lead | Four tabs — approval contacts, shift and overtime rules, mail server, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
@@ -138,7 +138,12 @@ All defaults work without a `.env`.
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Create your own team lead instead of the samples |
 | `SEED_DEMO_DATA` | `true` | Loads the sample fleet, but only into an empty database |
 | `SMTP_HOST` / `SMTP_PORT` | `mail` / `1025` | Mail relay. Point at your own and drop the `mail` service |
-| `MAIL_RETRY_SECONDS` | `300` | How often failed emails are retried |
+| `MAIL_RETRY_SECONDS` | `300` | How often failed emails and texts are retried |
+| `SMS_URL` | — | SMS gateway address, with `{to}` `{text}` `{sender}` `{apiKey}` in it |
+| `SMS_METHOD` / `SMS_HEADERS` / `SMS_BODY` | `GET` / — / — | The rest of the request to the gateway |
+| `SMS_API_KEY` / `SMS_SENDER` | — | The account's key and sender ID |
+| `SMS_NUMBER_FORMAT` / `SMS_COUNTRY_CODE` | `digits` / `880` | How numbers are written for the gateway |
+| `SMS_SUCCESS_TEXT` | — | A word the reply must contain to count as sent |
 
 ## Accounts
 
@@ -187,9 +192,67 @@ Common relays:
 | Mailpit, in this compose file | `mail` | 1025 | None |
 
 Every message is written to the `outbox` table before it is sent, so nothing is lost
-when the relay is down: the **Email log** shows the delivery state with the reason a
+when the relay is down: the **Message log** shows the delivery state with the reason a
 message failed, offers **Send again**, and a background worker retries failures on its
 own every `MAIL_RETRY_SECONDS`.
+
+## SMS to drivers
+
+An email reaches the person who asked for the car. The driver is out on the road, so
+when a trip is approved or called off they get a text instead — trip number, time, car,
+who to pick up and where to go, in one SMS.
+
+Fleet Desk has no gateway of its own and no list of supported vendors. **Settings → SMS
+gateway** is the HTTP request itself, so whatever your provider documents can be pasted
+in: address, method, headers and body are templates, and four placeholders are filled
+in before sending.
+
+| Placeholder | What goes in |
+|---|---|
+| `{to}` | The driver's mobile, written as **Send numbers as** says |
+| `{text}` | The message |
+| `{sender}` | Your sender ID or masking name |
+| `{apiKey}` | The account's key — stored apart from the settings and never returned by the API |
+
+Three shapes, all real:
+
+```
+A key in the address (GET)
+  Address  https://api.provider.com/sendsms?api_key={apiKey}&to={to}&msg={text}
+  Request  GET
+
+A JSON body with a bearer token (POST)
+  Address  https://api.provider.com/v1/sms
+  Request  POST
+  Headers  Authorization: Bearer {apiKey}
+  Body     {"from":"{sender}","to":"{to}","text":"{text}"}
+
+Form data (POST)
+  Address  https://api.provider.com/api/v2/send
+  Request  POST
+  Body     api_key={apiKey}&senderid={sender}&number={to}&message={text}
+```
+
+The content type is worked out from the body — JSON, XML or form data — unless a header
+sets it. Values are escaped to match, so a destination written as `7 Gulshan "Pink City"`
+cannot break the JSON and an `&` in a message cannot split a form field.
+
+Two settings exist because gateways misbehave in predictable ways. **Send numbers as**
+turns `01711-234567` into `01711234567` or `8801711234567`, since almost none of them
+accept a number the way people write it here. **Counts as sent when the reply contains**
+is for gateways that answer `200 OK` whatever happened: name a word their success reply
+carries — often `SUCCESS` — and anything else is recorded as a failure with the
+gateway's own words beside it.
+
+**Send a test SMS** saves the page, sends one message, and reports back the request it
+built with the key masked, along with whatever the gateway replied. That is usually
+enough to settle an argument between a provider's documentation and its behaviour.
+
+Texts go through the same outbox as email: stored first, retried by the same worker,
+listed in the **Message log** with **Via** showing which channel each one went by.
+Clearing the gateway address, or turning **Send driver texts** off, holds them in the
+log without sending — nothing is lost, and **Send again** picks them up once a gateway
+is in place.
 
 ## Everyday operations
 
@@ -231,6 +294,8 @@ After changing anything under `frontend/` or `backend/src/`, rebuild:
   session cookie is marked Secure automatically; `COOKIE_SECURE=true` forces it.
 - **Password.** Change `POSTGRES_PASSWORD` before the first start (it is baked into the
   volume at initialisation) and keep `.env` out of version control.
+- **SMS.** Fill in **Settings → SMS gateway** with your provider's request and send a
+  test. Until a gateway is set, driver texts queue in the message log unsent.
 - **Mail.** Point Fleet Desk at the company relay — **Settings → Mail server**, or
   `SMTP_HOST`/`SMTP_PORT` — and remove the `mail` service, which exists only to catch
   demo mail. See [Mail](#mail).
@@ -257,6 +322,7 @@ frontend/                     Everything the browser is served
 │       ├── api.js            Data layer: the REST backend, or mock data in the browser
 │       ├── calc.js           Overtime and running-km rules
 │       ├── email.js          Email templates (request, confirmation, rejection, cancellation)
+│       ├── sms.js            SMS templates — one text each for a trip and a cancellation
 │       ├── seed.js           Demo data and default settings
 │       ├── ui.js             Tables, forms, modals, charts, toasts
 │       ├── utils.js          Formatting and date helpers
@@ -278,8 +344,9 @@ backend/                      The REST API
 │   ├── auth.js               Identity and role checks
 │   ├── password.js           scrypt hashing and password rules
 │   ├── sessions.js           Session store and cookie
-│   ├── settings.js           The settings document, and the mail password kept apart
-│   ├── mailer.js             Outbox, SMTP delivery, retries
+│   ├── settings.js           The settings document, and the secrets kept apart from it
+│   ├── mailer.js             Outbox, SMTP and SMS delivery, retries
+│   ├── sms.js                The gateway request, built from the templates in Settings
 │   ├── seed.js               Loads the sample fleet and the first account
 │   ├── routes/               auth · users · me · settings · requisitions · reports · collections
 │   └── shared/               Generated copy of the frontend's shared modules, not in git
@@ -288,7 +355,7 @@ backend/                      The REST API
 ├── package.json              start · seed · smoke · shared
 └── Dockerfile                API image (Node 22)
 
-db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms
 docs/screenshots/             The images in this README
 API_CONTRACT.md               What the backend provides
 LICENSE                       MIT

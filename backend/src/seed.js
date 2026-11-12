@@ -22,7 +22,7 @@ export const DEMO_USERS = [
 ];
 
 const TABLES = ['outbox', 'fuel', 'maintenance', 'trips', 'requisitions', 'cards', 'cars', 'drivers'];   // child → parent
-const OUTBOX_FIELDS = ['sentAt', 'status', 'kind', 'reqId', 'to', 'cc', 'from', 'subject', 'html'];
+const OUTBOX_FIELDS = ['sentAt', 'status', 'channel', 'kind', 'reqId', 'to', 'cc', 'from', 'subject', 'html', 'text'];
 
 export async function ensureUsers(client) {
   for (const u of DEMO_USERS) {
@@ -114,7 +114,11 @@ export async function seedDemoData({ force = false } = {}) {
       await client.query(
         `INSERT INTO outbox (id, ${OUTBOX_FIELDS.map((f) => `"${f}"`).join(', ')}, attempts)
          VALUES ($1, ${OUTBOX_FIELDS.map((_, i) => `$${i + 2}`).join(', ')}, 1)`,
-        [mail.id, ...OUTBOX_FIELDS.map((f) => (f === 'reqId' ? mail[f] || null : mail[f] ?? ''))],
+        [mail.id, ...OUTBOX_FIELDS.map((f) => {
+          if (f === 'reqId') return mail[f] || null;
+          if (f === 'channel') return mail.channel || 'email';
+          return mail[f] ?? '';
+        })],
       );
     }
     out.outbox = data.outbox.length;

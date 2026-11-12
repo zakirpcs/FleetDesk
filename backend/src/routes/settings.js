@@ -3,8 +3,10 @@
 import { Router } from 'express';
 import { ApiError } from '../errors.js';
 import { requireRole, isStaff } from '../auth.js';
-import { getSettings, putSettings, hasMailPassword } from '../settings.js';
+import { getSettings, putSettings, hasMailPassword, hasSmsApiKey } from '../settings.js';
 import { resolveSmtp, buildTransport } from '../mailer.js';
+import { resolveSms, sendSms, buildRequest } from '../sms.js';
+import { testSms } from '../shared/sms.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -16,8 +18,15 @@ async function visible(settings, user) {
     return rest;
   }
   const effective = await resolveSmtp();
+  const sms = await resolveSms();
   return {
     ...settings,
+    sms: {
+      ...settings.sms,
+      hasApiKey: await hasSmsApiKey(),
+      source: sms.source,
+      envUrl: config.sms.url || '',
+    },
     smtp: {
       ...settings.smtp,
       // Never the password itself — only whether one is stored.
@@ -63,6 +72,30 @@ router.post('/mail-test', requireRole('lead'), async (req, res) => {
     // The SMTP server's own words are far more useful than anything we could invent.
     throw new ApiError(`${smtp.host}:${smtp.port} refused the test — ${e.message}`, 400, { code: e.code, command: e.command });
   }
+});
+
+/**
+ * Send one text through the gateway as configured right now, and report back what it
+ * said — including the request that was built, which is what you need when a
+ * provider's documentation and its behaviour disagree.
+ */
+router.post('/sms-test', requireRole('lead'), async (req, res) => {
+  const to = String(req.body?.to || '').trim();
+  if (!to) throw new ApiError('Enter a mobile number to send the test to');
+  const gateway = await resolveSms();
+  if (!gateway.url) throw new ApiError('Fill in the gateway address first, then save.', 400);
+
+  const settings = await getSettings();
+  const built = buildRequest(gateway, to, testSms(settings));
+  const out = await sendSms(to, testSms(settings), gateway);
+  res.json({
+    ok: true,
+    to: out.to,
+    source: gateway.source,
+    // The secret never comes back, however the gateway wanted it passed.
+    request: `${built.method} ${built.url.replace(encodeURIComponent(gateway.apiKey || '\u0000'), '***').replace(gateway.apiKey || '\u0000', '***')}`,
+    response: out.response,
+  });
 });
 
 export default router;

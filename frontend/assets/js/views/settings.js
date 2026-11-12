@@ -8,6 +8,16 @@ const ENCRYPTION = [
   { value: 'tls', label: 'TLS/SSL — usual for port 465' },
   { value: 'none', label: 'None — only on a trusted internal relay' },
 ];
+const SMS_SOURCE_NOTE = {
+  settings: 'Fleet Desk is using the gateway set here.',
+  environment: 'Fleet Desk is using the gateway the container was started with. Fill this in to take over.',
+  none: 'No SMS gateway is set up yet. Driver texts wait in the message log until one is.',
+};
+const NUMBER_FORMATS = [
+  { value: 'digits', label: 'Digits only — 01711234567' },
+  { value: 'country', label: 'With country code — 8801711234567' },
+  { value: 'as-is', label: 'Exactly as typed on the driver record' },
+];
 const SOURCE_NOTE = {
   settings: 'Fleet Desk is using the server set here.',
   environment: 'Fleet Desk is using the server the container was started with. Fill this in to take over.',
@@ -19,6 +29,7 @@ export const TABS = [
   { id: 'approvals', title: 'Approvals and email' },
   { id: 'overtime', title: 'Overtime rules' },
   { id: 'mail', title: 'Mail server', backend: true },
+  { id: 'sms', title: 'SMS gateway', backend: true },
   { id: 'fuel', title: 'Fuel prices' },
 ];
 
@@ -67,6 +78,28 @@ export async function render(el, ctx, subPath = '') {
         <span class="muted" id="mailTestNote">Saves first, then sends to your own address.</span>
       </div>
       <div class="callout mt" id="mailTestResult" hidden></div>`)}
+    ${CONFIG.USE_MOCK ? '' : section('sms', 'SMS gateway', 'A text to the driver when a trip is approved or called off — they are on the road, not at a desk.', `
+      <div class="callout ${s.sms?.source === 'none' ? 'warn' : ''}" style="margin:0 0 14px">${esc(SMS_SOURCE_NOTE[s.sms?.source] || '')}${s.sms?.source === 'environment' && s.sms?.envUrl ? ` <span class="muted">(${esc(s.sms.envUrl)})</span>` : ''}</div>
+      <p class="muted" style="margin:0 0 14px">Fleet Desk has no gateway of its own: it sends whatever HTTP request your provider documents. Paste their address and body in below and put these in place of the values:
+        <code>{to}</code> the driver's number, <code>{text}</code> the message, <code>{sender}</code> your sender ID, <code>{apiKey}</code> your key.</p>
+      <div class="form-grid">
+        ${fieldHtml({ name: 'sms_url', label: 'Gateway address', full: true, maxlength: 500, placeholder: 'https://api.provider.com/sendsms?api_key={apiKey}&to={to}&msg={text}', hint: 'Leave empty to fall back to the container settings.' }, s.sms?.url || '')}
+        ${fieldHtml({ name: 'sms_method', label: 'Request', type: 'select', options: [{ value: 'GET', label: 'GET — everything in the address' }, { value: 'POST', label: 'POST — send a body' }] }, s.sms?.method || 'GET')}
+        ${fieldHtml({ name: 'sms_sender', label: 'Sender ID', maxlength: 40, placeholder: 'FLEETDESK', hint: 'Masking or short code, if your account has one.' }, s.sms?.sender || '')}
+        ${fieldHtml({ name: 'sms_apiKey', label: 'API key', type: 'password', autocomplete: 'new-password', placeholder: s.sms?.hasApiKey ? 'Saved — type to replace it' : '', hint: s.sms?.hasApiKey ? 'Leave blank to keep the saved key. Type a space to clear it.' : 'Stored on the server and never shown again.' })}
+        ${fieldHtml({ name: 'sms_numberFormat', label: 'Send numbers as', type: 'select', options: NUMBER_FORMATS }, s.sms?.numberFormat || 'digits')}
+        ${fieldHtml({ name: 'sms_countryCode', label: 'Country code', maxlength: 4, inputmode: 'numeric', hint: 'Used by the two digit formats above.' }, s.sms?.countryCode || '880')}
+        ${fieldHtml({ name: 'sms_successText', label: 'Counts as sent when the reply contains', maxlength: 80, placeholder: 'e.g. SUCCESS', hint: 'Optional. Some gateways answer 200 OK even when they refuse; leave empty to trust the status code.' }, s.sms?.successText || '')}
+        ${fieldHtml({ name: 'sms_headers', label: 'Extra headers', type: 'textarea', full: true, maxlength: 2000, placeholder: 'Authorization: Bearer {apiKey}', hint: 'One per line, as Name: value.' }, s.sms?.headers || '')}
+        ${fieldHtml({ name: 'sms_body', label: 'Request body (POST only)', type: 'textarea', full: true, maxlength: 2000, placeholder: '{"api_key":"{apiKey}","to":"{to}","message":"{text}"}', hint: 'JSON or form data — whichever your provider documents. Fleet Desk works out the content type.' }, s.sms?.body || '')}
+        <label class="field full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="sms_enabled" ${s.sms?.enabled === false ? '' : 'checked'}> Send driver texts. <span class="muted">Turn off to hold them in the message log without sending.</span></label>
+      </div>
+      <div class="toolbar mt" style="margin-bottom:0">
+        <input class="input" id="smsTestTo" style="max-width:220px" placeholder="01711234567" aria-label="Test number" inputmode="tel">
+        <button class="btn" id="smsTest" type="button">Send a test SMS</button>
+        <span class="muted">Saves first, then sends one message to that number.</span>
+      </div>
+      <div class="callout mt" id="smsTestResult" hidden></div>`)}
     ${section('fuel', 'Fuel prices', 'Prefilled as the rate when a fuel load is recorded. The rate can still be changed on each load.', `<div class="form-grid">
       ${['Octane', 'Petrol', 'Diesel'].map((f) => fieldHtml({ name: `fp_${f}`, label: `${f} (BDT per litre)`, type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices[f])).join('')}
       ${fieldHtml({ name: 'fp_CNG', label: 'CNG (BDT per m³)', type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices.CNG)}
@@ -120,8 +153,15 @@ export async function render(el, ctx, subPath = '') {
       // Only send a password when one was typed: blank means "keep what is stored".
       ...(v.smtp_password === '' ? {} : { password: v.smtp_password.trim() }),
     };
+    const sms = CONFIG.USE_MOCK ? undefined : {
+      enabled: Boolean(v.sms_enabled), url: v.sms_url.trim(), method: v.sms_method,
+      headers: v.sms_headers, body: v.sms_body, sender: v.sms_sender,
+      numberFormat: v.sms_numberFormat, countryCode: v.sms_countryCode, successText: v.sms_successText,
+      ...(v.sms_apiKey === '' ? {} : { apiKey: v.sms_apiKey.trim() }),
+    };
     await api.saveSettings({
       ...(smtp ? { smtp } : {}),
+      ...(sms ? { sms } : {}),
       teamLeadName: v.teamLeadName, teamLeadEmail: v.teamLeadEmail, senderEmail: v.senderEmail, orgName: v.orgName,
       shiftStart: v.shiftStart, shiftEnd: v.shiftEnd, graceMinutes: Number(v.graceMinutes), roundingMinutes: Number(v.roundingMinutes),
       weekendMultiplier: Number(v.weekendMultiplier), weekStartDay: Number(v.weekStartDay),
@@ -151,6 +191,32 @@ export async function render(el, ctx, subPath = '') {
       box.hidden = false;
       e.target.disabled = false;
       e.target.textContent = 'Send a test email';
+    }
+  });
+
+  // Same idea for SMS, and it reports the request it built — which is what you need
+  // when a provider's documentation and its behaviour disagree.
+  el.querySelector('#smsTest')?.addEventListener('click', async (e) => {
+    const box = el.querySelector('#smsTestResult');
+    box.hidden = true;
+    const to = el.querySelector('#smsTestTo').value.trim();
+    if (!to) { box.className = 'callout bad mt'; box.textContent = 'Enter a mobile number to send the test to.'; box.hidden = false; return; }
+    if (!checkForm(form)) return revealProblem();
+    e.target.disabled = true;
+    e.target.textContent = 'Sending…';
+    try {
+      form.requestSubmit();
+      await new Promise((r) => setTimeout(r, 400));
+      const out = await api.testSms(to);
+      box.className = 'callout mt';
+      box.innerHTML = `Test message sent to <b>${esc(out.to)}</b>.<br><small class="muted">${esc(out.request)}</small><br><small class="muted">${esc(out.response)}</small>`;
+    } catch (ex) {
+      box.className = 'callout bad mt';
+      box.textContent = ex.message;
+    } finally {
+      box.hidden = false;
+      e.target.disabled = false;
+      e.target.textContent = 'Send a test SMS';
     }
   });
 }

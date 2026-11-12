@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from './shared/seed.js';
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ENCRYPTIONS = ['none', 'starttls', 'tls'];
 export const SMTP_PASSWORD_KEY = 'smtp.password';
+export const SMS_API_KEY = 'sms.apiKey';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FUELS = ['Octane', 'Petrol', 'Diesel', 'CNG'];
 
@@ -17,6 +18,7 @@ export async function getSettings() {
   const { rows } = await pool.query('SELECT data FROM settings WHERE id = 1');
   const merged = { ...defaults(), ...(rows[0]?.data || {}) };
   merged.smtp = { ...defaults().smtp, ...(merged.smtp || {}) };
+  merged.sms = { ...defaults().sms, ...(merged.sms || {}) };
   return merged;
 }
 
@@ -26,6 +28,21 @@ export const hasMailPassword = async () =>
 
 export const mailPassword = async () =>
   (await pool.query('SELECT value FROM app_secrets WHERE key = $1', [SMTP_PASSWORD_KEY])).rows[0]?.value || '';
+
+export const hasSmsApiKey = async () =>
+  Boolean(await pool.query('SELECT 1 FROM app_secrets WHERE key = $1', [SMS_API_KEY]).then((r) => r.rowCount));
+
+export const smsApiKey = async () =>
+  (await pool.query('SELECT value FROM app_secrets WHERE key = $1', [SMS_API_KEY])).rows[0]?.value || '';
+
+async function saveSecret(key, value) {
+  if (value === null) return pool.query('DELETE FROM app_secrets WHERE key = $1', [key]);
+  return pool.query(
+    `INSERT INTO app_secrets (key, value) VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()`,
+    [key, value],
+  );
+}
 
 async function saveMailPassword(value) {
   if (value === null) return pool.query('DELETE FROM app_secrets WHERE key = $1', [SMTP_PASSWORD_KEY]);
@@ -41,9 +58,13 @@ export async function putSettings(patch) {
   // settings document, and '' means "forget the one we have".
   const password = patch?.smtp?.password;
   if (password !== undefined) await saveMailPassword(password === '' ? null : String(password));
+  const apiKey = patch?.sms?.apiKey;
+  if (apiKey !== undefined) await saveSecret(SMS_API_KEY, apiKey === '' ? null : String(apiKey));
 
-  const merged = { ...(await getSettings()), ...(patch || {}) };
-  if (patch?.smtp) merged.smtp = { ...(await getSettings()).smtp, ...patch.smtp };
+  const current = await getSettings();
+  const merged = { ...current, ...(patch || {}) };
+  if (patch?.smtp) merged.smtp = { ...current.smtp, ...patch.smtp };
+  if (patch?.sms) merged.sms = { ...current.sms, ...patch.sms };
   const next = validate(merged);
   await pool.query(
     'INSERT INTO settings (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1',
@@ -88,6 +109,30 @@ function validateSmtp(smtp) {
   };
 }
 
+const SMS_METHODS = ['GET', 'POST'];
+const NUMBER_FORMATS = ['as-is', 'digits', 'country'];
+
+function validateSms(sms) {
+  const url = String(sms.url ?? '').trim();
+  if (url && !/^https?:\/\//i.test(url)) throw new ApiError('The gateway address has to start with http:// or https://');
+  const method = String(sms.method || 'GET').toUpperCase();
+  if (!SMS_METHODS.includes(method)) throw new ApiError(`The request has to be ${SMS_METHODS.join(' or ')}`);
+  const numberFormat = String(sms.numberFormat || 'digits');
+  if (!NUMBER_FORMATS.includes(numberFormat)) throw new ApiError(`Number format must be one of: ${NUMBER_FORMATS.join(', ')}`);
+  const countryCode = String(sms.countryCode ?? '880').replace(/\D/g, '');
+  return {
+    enabled: sms.enabled !== false,
+    url,
+    method,
+    headers: String(sms.headers ?? '').slice(0, 2000),
+    body: String(sms.body ?? '').slice(0, 2000),
+    sender: String(sms.sender ?? '').trim().slice(0, 40),
+    numberFormat,
+    countryCode: countryCode || '880',
+    successText: String(sms.successText ?? '').trim().slice(0, 80),
+  };
+}
+
 export function validate(s) {
   const out = {
     orgName: str(s.orgName, 'Default start point'),
@@ -108,6 +153,7 @@ export function validate(s) {
     }).sort(),
     fuelPrices: Object.fromEntries(FUELS.map((f) => [f, num(s.fuelPrices?.[f], `${f} price`, { min: 0, max: 100000 })])),
     smtp: validateSmtp(s.smtp || {}),
+    sms: validateSms(s.sms || {}),
   };
   if (out.shiftEnd <= out.shiftStart) throw new ApiError('Shift must end after it starts.');
   if (out.weekendDays.length >= 7) throw new ApiError('At least one day of the week must be a working day');

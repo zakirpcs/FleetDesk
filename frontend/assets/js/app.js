@@ -44,7 +44,7 @@ export const ROUTES = [
   { path: 'consumption', title: 'Fuel consumption', group: 'Reports', roles: STAFF, load: () => import('./views/consumption.js') },
   { path: 'overtime', title: 'Driver overtime', group: 'Reports', roles: STAFF, load: () => import('./views/overtime.js') },
   { path: 'assignments', title: 'Assignment history', group: 'Reports', roles: STAFF, load: () => import('./views/assignments.js') },
-  { path: 'outbox', title: 'Email log', group: 'Admin', roles: STAFF, load: () => import('./views/outbox.js') },
+  { path: 'outbox', title: 'Message log', group: 'Admin', roles: STAFF, load: () => import('./views/outbox.js') },
   { path: 'users', title: 'People and access', group: 'Admin', roles: ['lead'], load: () => import('./views/users.js'), icon: 'users', backend: true },
   { path: 'settings', title: 'Settings', group: 'Admin', roles: ['lead'], load: () => import('./views/settings.js'), tabbed: true },
   // Reached from the user menu rather than the menu bar.

@@ -1,6 +1,7 @@
 // Demo data generator for the mock data layer. Deterministic, relative to today's date.
 import { toISO, addDays, today, weekday, pad } from './utils.js';
 import { confirmEmail, rejectEmail } from './email.js';
+import { driverTripSms } from './sms.js';
 
 function rng(seed) {
   return () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -23,6 +24,12 @@ export const DEFAULT_SETTINGS = {
   // Mail server. Empty means "use whatever the environment was started with".
   // The password is never part of this document — see db/migrations/004_secrets.sql.
   smtp: { host: '', port: 587, encryption: 'starttls', user: '', fromName: '' },
+  // SMS gateway. The request is configuration, so any provider's HTTP API fits:
+  // {to} {text} {sender} {apiKey} are filled in when a message goes out.
+  sms: {
+    enabled: true, url: '', method: 'GET', headers: '', body: '', sender: '',
+    numberFormat: 'digits', countryCode: '880', successText: '',
+  },
 };
 
 export function seed() {
@@ -202,6 +209,12 @@ export function seed() {
     if (status === 'Approved') {
       req.carId = carId; req.driverId = cById[carId].driverId;
       outbox.push({ id: 'e' + (outbox.length + 1), sentAt: req.reviewedAt, status: 'Sent', ...confirmEmail(req, dById[req.driverId], cById[carId], settings) });
+      // The driver gets the same news as a text — that is what reaches them on the road.
+      outbox.push({
+        id: 'e' + (outbox.length + 1), sentAt: req.reviewedAt, status: 'Sent', channel: 'sms',
+        kind: 'confirmation', reqId: req.id, to: dById[req.driverId].mobile, cc: '', from: '', subject: '', html: '',
+        text: driverTripSms(req, dById[req.driverId], cById[carId], settings),
+      });
     }
     if (status === 'Rejected') {
       req.remarks = 'No car free in that slot; all cars booked for the bank audit.';

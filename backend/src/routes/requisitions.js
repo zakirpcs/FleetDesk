@@ -7,8 +7,9 @@ import { isStaff, requireRole } from '../auth.js';
 import { coerce, serialise, selectList } from '../schema.js';
 import { uid, get } from '../store.js';
 import { getSettings } from '../settings.js';
-import { queue, deliverSoon } from '../mailer.js';
+import { queue, deliverSoon, smsMessage } from '../mailer.js';
 import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from '../shared/email.js';
+import { driverTripSms, driverCancelSms } from '../shared/sms.js';
 
 const router = Router();
 const CLASH_MINUTES = 180;   // a driver or car booked within 3 hours counts as a clash
@@ -94,7 +95,7 @@ router.post('/:id/approve', requireRole('lead'), async (req, res) => {
   if (!driverId || !carId) throw new ApiError('Choose a driver and a car before approving');
 
   const settings = await getSettings();
-  const { approved, mailId } = await tx(async (client) => {
+  const { approved, mailIds } = await tx(async (client) => {
     const current = await lockRequisition(client, req.params.id);
     mustBePending(current);
     const driver = (await client.query('SELECT id, name, mobile, status FROM drivers WHERE id = $1', [driverId])).rows[0];
@@ -113,9 +114,16 @@ router.post('/:id/approve', requireRole('lead'), async (req, res) => {
       [current.id, driverId, carId, remarks, req.user.name || settings.teamLeadName],
     );
     const out = serialise('requisitions', rows[0]);
-    return { approved: out, mailId: await queue(client, confirmEmail(out, driver, car, settings)) };
+    const ids = [await queue(client, confirmEmail(out, driver, car, settings))];
+    // The driver is the one who has to turn up; a text reaches them on the road.
+    if (driver.mobile) {
+      ids.push(await queue(client, smsMessage({
+        to: driver.mobile, text: driverTripSms(out, driver, car, settings), kind: 'confirmation', reqId: out.id,
+      })));
+    }
+    return { approved: out, mailIds: ids };
   });
-  await deliverSoon([mailId]);
+  await deliverSoon(mailIds);
   res.json(approved);
 });
 
@@ -148,7 +156,7 @@ router.post('/:id/cancel', async (req, res) => {
   const reason = String(req.body?.reason || '').trim().slice(0, 300);
   const settings = await getSettings();
 
-  const { cancelled, mailId } = await tx(async (client) => {
+  const { cancelled, mailIds } = await tx(async (client) => {
     const current = await lockRequisition(client, req.params.id);
     const mine = current.email.toLowerCase() === req.user.email.toLowerCase();
     if (!isStaff(req.user) && !mine) throw new ApiError('You can only cancel your own requests.', 403);
@@ -173,13 +181,19 @@ router.post('/:id/cancel', async (req, res) => {
     const out = serialise('requisitions', rows[0]);
 
     // AGS only needs telling when a car and driver had been committed to it.
-    if (current.status !== 'Approved') return { cancelled: out, mailId: null };
+    if (current.status !== 'Approved') return { cancelled: out, mailIds: [] };
     const driver = (await client.query('SELECT id, name, mobile FROM drivers WHERE id = $1', [out.driverId])).rows[0];
     const car = (await client.query('SELECT id, "regNo" FROM cars WHERE id = $1', [out.carId])).rows[0];
-    return { cancelled: out, mailId: await queue(client, cancelEmail(out, driver, car, settings)) };
+    const ids = [await queue(client, cancelEmail(out, driver, car, settings))];
+    if (driver?.mobile) {
+      ids.push(await queue(client, smsMessage({
+        to: driver.mobile, text: driverCancelSms(out, driver, car, settings), kind: 'cancellation', reqId: out.id,
+      })));
+    }
+    return { cancelled: out, mailIds: ids };
   });
 
-  if (mailId) await deliverSoon([mailId]);
+  if (mailIds?.length) await deliverSoon(mailIds);
   res.json(cancelled);
 });
 
