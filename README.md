@@ -235,48 +235,67 @@ After changing anything under `frontend/` or `backend/src/`, rebuild:
 
 ## Project layout
 
+Each tier owns a folder, and each folder holds everything that tier needs —
+its source, its Dockerfile and its configuration.
+
 ```
-docker-compose.yml           The four services
-.env.example                 Ports, credentials, behaviour
+docker-compose.yml            The four services: frontend, backend, db, mail
+.env.example                  Ports, credentials, behaviour
 
-frontend/index.html          App shell
-frontend/login.html          Sign-in page
-frontend/assets/css/app.css  All styles
-frontend/assets/fonts/       Barlow (SIL Open Font License)
-frontend/assets/js/app.js    Router, navigation, roles, who is signed in
-frontend/assets/js/api.js    Data layer: mock (localStorage) or REST
-frontend/assets/js/calc.js   Overtime and running-km rules
-frontend/assets/js/email.js  Email templates (request, confirmation, rejection)
-frontend/assets/js/seed.js   Demo data and default settings
-frontend/assets/js/ui.js     Tables, forms, modals, charts, toasts
-frontend/assets/js/utils.js  Formatting and date helpers
-frontend/assets/js/login.js  Sign-in page logic
-frontend/assets/js/views/*.js  One file per page
-frontend/Dockerfile          Nginx image (unprivileged, port 8080)
-frontend/nginx.conf          Static files, security headers, /api/ proxy
-frontend/entrypoint/         Sets the data mode from FLEETDESK_MODE
+frontend/                     Everything the browser is served
+├── index.html                App shell
+├── login.html                Sign-in page
+├── assets/
+│   ├── css/app.css           All styles
+│   ├── fonts/                Barlow (SIL Open Font License)
+│   └── js/
+│       ├── app.js            Router, navigation, roles, who is signed in
+│       ├── api.js            Data layer: the REST backend, or mock data in the browser
+│       ├── calc.js           Overtime and running-km rules
+│       ├── email.js          Email templates (request, confirmation, rejection, cancellation)
+│       ├── seed.js           Demo data and default settings
+│       ├── ui.js             Tables, forms, modals, charts, toasts
+│       ├── utils.js          Formatting and date helpers
+│       ├── login.js          Sign-in page logic
+│       └── views/            One file per page, 18 of them
+├── Dockerfile                Nginx image (unprivileged, port 8080)
+├── nginx.conf                Static files, security headers, /api/ proxy
+└── entrypoint/               Sets the data mode from FLEETDESK_MODE
 
-backend/Dockerfile           API image (Node 22)
-backend/src/server.js        Express app and startup
-backend/src/config.js        Environment settings
-backend/src/db.js            PostgreSQL pool and type parsing
-backend/src/schema.js        Field registry: columns, types, uniqueness
-backend/src/store.js         Generic CRUD and the business rules
-backend/src/auth.js          Identity and role checks
-backend/src/password.js      scrypt hashing and password rules
-backend/src/sessions.js      Session store and cookie
-backend/src/migrate.js       Applies db/migrations at startup
-backend/src/settings.js      The settings document
-backend/src/mailer.js        Outbox, SMTP delivery, retries
-backend/src/seed.js          Loads the sample fleet
-backend/src/routes/          auth, users, me, settings, requisitions, reports, collections
-backend/src/shared/          Generated copy of the shared frontend modules
-backend/test/smoke.js        End-to-end API test
+backend/                      The REST API
+├── src/
+│   ├── server.js             Express app and startup
+│   ├── config.js             Everything that comes from the environment
+│   ├── db.js                 PostgreSQL pool, and date and number parsing
+│   ├── migrate.js            Applies db/migrations at startup
+│   ├── schema.js             Field registry: columns, types, uniqueness
+│   ├── store.js              Generic CRUD and the business rules
+│   ├── errors.js             ApiError, and messages written for end users
+│   ├── auth.js               Identity and role checks
+│   ├── password.js           scrypt hashing and password rules
+│   ├── sessions.js           Session store and cookie
+│   ├── settings.js           The settings document, and the mail password kept apart
+│   ├── mailer.js             Outbox, SMTP delivery, retries
+│   ├── seed.js               Loads the sample fleet and the first account
+│   ├── routes/               auth · users · me · settings · requisitions · reports · collections
+│   └── shared/               Generated copy of the frontend's shared modules, not in git
+├── scripts/sync-shared.mjs   Copies those modules out of frontend/ at build time
+├── test/smoke.js             End-to-end API test (npm run smoke)
+├── package.json              start · seed · smoke · shared
+└── Dockerfile                API image (Node 22)
 
-db/migrations/*.sql          Schema, applied in order by the API at startup
-docs/screenshots/            The images in this README
-API_CONTRACT.md              What the backend provides
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets
+docs/screenshots/             The images in this README
+API_CONTRACT.md               What the backend provides
+LICENSE                       MIT
 ```
+
+Two of those deserve a note. `frontend/assets/js/{utils,calc,email,seed}.js` are the
+single definition of the email templates, the overtime rules and the demo data: the
+API image copies them into `backend/src/shared/` when it is built, so the two sides
+cannot drift apart — edit them in `frontend/`, never in `backend/src/shared/`. And
+`db/migrations/` is the only place the schema is described; the API applies whatever
+is pending when it starts.
 
 ## Defaults you may want to change (Settings page)
 
