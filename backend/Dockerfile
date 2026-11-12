@@ -1,7 +1,7 @@
 # Fleet Desk API — see API_CONTRACT.md
 #
 # Build from the repository root so the shared business-rule modules can be copied
-# out of assets/js:  docker build -f backend/Dockerfile .
+# out of frontend/assets/js:  docker build -f backend/Dockerfile .
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY backend/package.json ./
@@ -26,7 +26,7 @@ COPY db/migrations ./db/migrations
 
 # One definition of the email templates, overtime rules and demo data: copy them
 # from the frontend source instead of maintaining a second implementation.
-COPY assets/js/utils.js assets/js/calc.js assets/js/email.js assets/js/seed.js /tmp/shared/
+COPY frontend/assets/js/utils.js frontend/assets/js/calc.js frontend/assets/js/email.js frontend/assets/js/seed.js /tmp/shared/
 RUN node scripts/sync-shared.mjs /tmp/shared && rm -rf /tmp/shared
 
 USER node

@@ -1,6 +1,6 @@
 # Fleet Desk: backend API contract
 
-The frontend calls everything through `assets/js/api.js`. With `<meta name="fleetdesk-mode" content="api">` in `index.html` — what the frontend container serves — it sends the requests below to `/api/v1`; with `content="mock"` the same calls are answered from the browser's own storage. Responses are JSON. Errors return `{ "message": "...", "details": {...} }` with a 4xx/5xx status; the UI shows `message` to the user as-is, so write it for end users.
+The frontend calls everything through `frontend/assets/js/api.js`. With `<meta name="fleetdesk-mode" content="api">` in `frontend/index.html` — what the frontend container serves — it sends the requests below to `/api/v1`; with `content="mock"` the same calls are answered from the browser's own storage. Responses are JSON. Errors return `{ "message": "...", "details": {...} }` with a 4xx/5xx status; the UI shows `message` to the user as-is, so write it for end users.
 
 IDs are strings. Dates are `YYYY-MM-DD`, times `HH:MM` (24h, Asia/Dhaka), timestamps ISO 8601.
 
@@ -14,15 +14,15 @@ IDs are strings. Dates are `YYYY-MM-DD`, times `HH:MM` (24h, Asia/Dhaka), timest
 | Sign-in and accounts | `backend/src/routes/auth.js`, `backend/src/routes/users.js` |
 | Generic CRUD, entities, validation | `backend/src/schema.js` (columns and types), `backend/src/store.js` (rules), `backend/src/routes/collections.js` |
 | Requisition workflow | `backend/src/routes/requisitions.js` |
-| Confirmation email fields | `assets/js/email.js`, sent and retried by `backend/src/mailer.js` |
-| Business rules for reports | `assets/js/calc.js`, exposed by `backend/src/routes/reports.js` |
+| Confirmation email fields | `frontend/assets/js/email.js`, sent and retried by `backend/src/mailer.js` |
+| Business rules for reports | `frontend/assets/js/calc.js`, exposed by `backend/src/routes/reports.js` |
 | Tables, constraints, indexes | `db/migrations/*.sql`, applied at startup by `backend/src/migrate.js` |
 
 `backend/test/smoke.js` checks the whole contract against a running API, including the status codes below.
 
 ## Authentication and roles
 
-People sign in on `login.html`, which posts to `/auth/login` and gets back an HttpOnly, SameSite=Lax session cookie; the session itself lives in the `sessions` table. Every endpoint except `/auth/*` answers 401 without one, and the frontend sends anyone who gets a 401 to the sign-in page.
+People sign in on `frontend/login.html`, which posts to `/auth/login` and gets back an HttpOnly, SameSite=Lax session cookie; the session itself lives in the `sessions` table. Every endpoint except `/auth/*` answers 401 without one, and the frontend sends anyone who gets a 401 to the sign-in page.
 
 With `AUTH_MODE=proxy` there is no sign-in page: an authenticating proxy in front passes the identity in (`X-Forwarded-Email`, `X-Forwarded-Groups`, for example LDAP/FreeIPA groups mapped to roles) and Fleet Desk stops managing passwords.
 
@@ -127,7 +127,7 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 
 ### Confirmation email fields
 
-Driver name, Car number, Driver mobile no., Start point, Destination, Request date & time (= `requiredDate` + `startTime`). The template is in `assets/js/email.js`; render the same on the server and send through the SMTP relay. Write every message to `outbox` with its delivery status, and retry `Failed` ones.
+Driver name, Car number, Driver mobile no., Start point, Destination, Request date & time (= `requiredDate` + `startTime`). The template is in `frontend/assets/js/email.js`; render the same on the server and send through the SMTP relay. Write every message to `outbox` with its delivery status, and retry `Failed` ones.
 
 ## Business rules for reports
 
@@ -141,7 +141,7 @@ Driver name, Car number, Driver mobile no., Start point, Destination, Request da
 3. Weekend day (`weekendDays`) or a date in `holidays`: the whole duty window is OT, paid at `weekendMultiplier`.
 4. Round OT down to `roundingMinutes`. Amount = OT hours × driver `otRate` × multiplier.
 
-Reference implementation: `assets/js/calc.js`.
+Reference implementation: `frontend/assets/js/calc.js`.
 
 ## Optional report endpoints (when lists get large)
 

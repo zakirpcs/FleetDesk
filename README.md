@@ -99,19 +99,19 @@ docker compose down -v                 # stop and delete the database volume
 
 ```
 browser ──▶ frontend (Nginx :8080)
-              ├── /            index.html, assets/   (static files)
+              ├── /            index.html, login.html, assets/   (static files)
               └── /api/   ──▶  backend (Node :8080)  ──▶  db (PostgreSQL :5432)
                                    └── SMTP ──▶ mail (Mailpit :1025, UI :8025)
 ```
 
 The browser only ever talks to the frontend; the API and the database are not
 published off the host. The frontend decides where its data comes from at runtime
-from `<meta name="fleetdesk-mode">` in `index.html`, which the frontend container
+from `<meta name="fleetdesk-mode">` in `frontend/index.html`, which the container
 rewrites on start — so the same files serve both the container stack (`api`) and the
 browser-only demo (`mock`).
 
 The email templates, the overtime and running-km rules, and the demo data generator
-are shared: `backend/scripts/sync-shared.mjs` copies `assets/js/{utils,calc,email,seed}.js`
+are shared: `backend/scripts/sync-shared.mjs` copies `frontend/assets/js/{utils,calc,email,seed}.js`
 into `backend/src/shared/` when the API image is built. The confirmation email the
 team lead previews before approving is rendered by the same module that sends it.
 
@@ -208,7 +208,7 @@ docker compose exec db psql -U fleetdesk -d fleetdesk
 what it can — it is safe against the demo database, and it leaves one driver and a few
 requisitions behind (reload the sample data to clear them).
 
-After changing anything under `assets/` or `backend/src/`, rebuild:
+After changing anything under `frontend/` or `backend/src/`, rebuild:
 `docker compose up -d --build`.
 
 ## Before real use
@@ -239,20 +239,19 @@ After changing anything under `assets/` or `backend/src/`, rebuild:
 docker-compose.yml           The four services
 .env.example                 Ports, credentials, behaviour
 
-index.html                   App shell
-login.html                   Sign-in page
-assets/css/app.css           All styles
-assets/fonts/                Barlow (SIL Open Font License)
-assets/js/app.js             Router, navigation, roles, who is signed in
-assets/js/api.js             Data layer: mock (localStorage) or REST
-assets/js/calc.js            Overtime and running-km rules
-assets/js/email.js           Email templates (request, confirmation, rejection)
-assets/js/seed.js            Demo data and default settings
-assets/js/ui.js              Tables, forms, modals, charts, toasts
-assets/js/utils.js           Formatting and date helpers
-assets/js/login.js           Sign-in page logic
-assets/js/views/*.js         One file per page
-
+frontend/index.html          App shell
+frontend/login.html          Sign-in page
+frontend/assets/css/app.css  All styles
+frontend/assets/fonts/       Barlow (SIL Open Font License)
+frontend/assets/js/app.js    Router, navigation, roles, who is signed in
+frontend/assets/js/api.js    Data layer: mock (localStorage) or REST
+frontend/assets/js/calc.js   Overtime and running-km rules
+frontend/assets/js/email.js  Email templates (request, confirmation, rejection)
+frontend/assets/js/seed.js   Demo data and default settings
+frontend/assets/js/ui.js     Tables, forms, modals, charts, toasts
+frontend/assets/js/utils.js  Formatting and date helpers
+frontend/assets/js/login.js  Sign-in page logic
+frontend/assets/js/views/*.js  One file per page
 frontend/Dockerfile          Nginx image (unprivileged, port 8080)
 frontend/nginx.conf          Static files, security headers, /api/ proxy
 frontend/entrypoint/         Sets the data mode from FLEETDESK_MODE
@@ -290,4 +289,4 @@ API_CONTRACT.md              What the backend provides
 Fleet Desk is released under the [MIT License](LICENSE).
 
 The bundled Barlow fonts are not covered by it. They are licensed separately under
-the SIL Open Font License, included as `assets/fonts/OFL-LICENSE.txt`.
+the SIL Open Font License, included as `frontend/assets/fonts/OFL-LICENSE.txt`.

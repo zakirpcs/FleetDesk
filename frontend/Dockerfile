@@ -5,9 +5,9 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 ENV FLEETDESK_MODE=api
 
-COPY --chown=nginx:nginx index.html /usr/share/nginx/html/index.html
-COPY --chown=nginx:nginx login.html /usr/share/nginx/html/login.html
-COPY --chown=nginx:nginx assets/    /usr/share/nginx/html/assets/
+COPY --chown=nginx:nginx frontend/index.html /usr/share/nginx/html/index.html
+COPY --chown=nginx:nginx frontend/login.html /usr/share/nginx/html/login.html
+COPY --chown=nginx:nginx frontend/assets/    /usr/share/nginx/html/assets/
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/entrypoint/20-fleetdesk-mode.sh /docker-entrypoint.d/20-fleetdesk-mode.sh
 
