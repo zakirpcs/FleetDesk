@@ -106,27 +106,29 @@ export async function render(el) {
       <div class="kpi"><div class="kpi-label">Driver overtime this month</div><div class="kpi-value">${num(sum(ot, (x) => x.otMin) / 60)}<small>h</small></div><div class="kpi-note">${bdt(sum(ot, (x) => x.amount))}</div></div>
     </div>
 
-    <section class="panel mt">
-      <div class="panel-head"><h2>Cars right now</h2><span class="spacer"></span><a href="#cars" class="muted">Car inventory</a></div>
-      <div class="panel-body">
-        <div class="grid grid-3 fleet-now">
-          ${nowColumn('On trip', fleet.out, 'Every car is in.')}
-          ${nowColumn('Available', fleet.free, 'Every car is out or off the road.')}
-          ${nowColumn('Maintenance', fleet.off, 'Nothing off the road.')}
+    <div class="grid grid-2 mt">
+      <section class="panel">
+        <div class="panel-head"><h2>Cars right now</h2><span class="spacer"></span><a href="#cars" class="muted">Car inventory</a></div>
+        <div class="panel-body">
+          <div class="fleet-now">
+            ${nowColumn('On trip', fleet.out, 'Every car is in.')}
+            ${nowColumn('Available', fleet.free, 'Every car is out or off the road.')}
+            ${nowColumn('Maintenance', fleet.off, 'Nothing off the road.')}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="panel mt">
-      <div class="panel-head"><h2>Drivers right now</h2><span class="spacer"></span><a href="#drivers" class="muted">Driver list</a></div>
-      <div class="panel-body">
-        <div class="grid grid-3 fleet-now">
-          ${nowColumn('On duty', crew.out, 'Nobody is out yet today.', 'On trip')}
-          ${nowColumn('Available', crew.free, 'Every driver is out or away.')}
-          ${nowColumn('On leave', crew.off, 'Everyone is on the roster.')}
+      <section class="panel">
+        <div class="panel-head"><h2>Drivers right now</h2><span class="spacer"></span><a href="#drivers" class="muted">Driver list</a></div>
+        <div class="panel-body">
+          <div class="fleet-now">
+            ${nowColumn('On duty', crew.out, 'Nobody is out yet today.', 'On trip')}
+            ${nowColumn('Available', crew.free, 'Every driver is out or away.')}
+            ${nowColumn('On leave', crew.off, 'Everyone is on the roster.')}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
     <div class="grid grid-2 mt">
       <section class="panel">
