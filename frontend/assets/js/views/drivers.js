@@ -84,7 +84,7 @@ export async function render(el) {
         { name: 'joinDate', label: 'Joining date', type: 'date' },
         { name: 'licenseNo', label: 'Driving licence number', required: true },
         { name: 'licenseExpiry', label: 'Licence expiry', type: 'date', required: true },
-        { name: 'otRate', label: 'Overtime rate (BDT per hour)', type: 'number', required: true, min: 0, step: 1 },
+        { name: 'otRate', label: 'Overtime rate (BDT per hour)', type: 'number', required: true, min: 0, step: 'any' },
         { name: 'status', label: 'Status', type: 'select', required: true, options: ['Active', 'On leave', 'Inactive'] },
         { name: 'address', label: 'Address', full: true },
       ],

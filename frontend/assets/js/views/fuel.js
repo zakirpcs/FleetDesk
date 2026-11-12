@@ -108,7 +108,7 @@ export async function render(el) {
         { name: 'qty', label: 'Quantity', type: 'number', required: true, min: 0.01, step: 0.01, hint: 'Litres, or m³ for CNG' },
         { name: 'unitPrice', label: 'Rate (BDT per unit)', type: 'number', required: true, min: 0, step: 0.01 },
         { name: 'amount', label: 'Amount (BDT)', type: 'number', readonly: true, hint: 'Quantity × rate' },
-        { name: 'odometer', label: 'Odometer at fill (km)', type: 'number', required: true, min: 0 },
+        { name: 'odometer', label: 'Odometer at fill (km)', type: 'number', required: true, min: 0, step: 'any' },
         { name: 'station', label: 'Filling station', required: true },
         { name: 'receiptNo', label: 'Receipt / memo no.' },
       ],

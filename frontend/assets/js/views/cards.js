@@ -79,7 +79,7 @@ export async function render(el) {
         { name: 'last4', label: 'Last 4 digits', required: true, pattern: '^\\d{4}$', maxlength: 4, inputmode: 'numeric', placeholder: '4417' },
         { name: 'expiry', label: 'Expiry month', type: 'month', required: true },
         { name: 'carId', label: 'Assigned car', type: 'select', placeholder: 'Pool card (any car)', options: data.cars.map((c) => ({ value: c.id, label: `${c.regNo} · ${c.model}` })) },
-        { name: 'monthlyLimit', label: 'Monthly limit (BDT)', type: 'number', required: true, min: 0, step: 500 },
+        { name: 'monthlyLimit', label: 'Monthly limit (BDT)', type: 'number', required: true, min: 0, step: 'any' },
         { name: 'issuedOn', label: 'Issued on', type: 'date' },
         { name: 'status', label: 'Status', type: 'select', required: true, options: ['Active', 'Blocked', 'Closed'] },
         { name: 'notes', label: 'Notes', full: true },

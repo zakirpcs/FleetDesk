@@ -45,7 +45,7 @@ export async function render(el, ctx, subPath = '') {
       ${fieldHtml({ name: 'shiftEnd', label: 'Shift ends', type: 'time', required: true }, s.shiftEnd)}
       ${fieldHtml({ name: 'graceMinutes', label: 'Grace period (minutes)', type: 'number', min: 0, max: 120, required: true, hint: 'Extra time below this is not counted' }, s.graceMinutes)}
       ${fieldHtml({ name: 'roundingMinutes', label: 'Round overtime down to (minutes)', type: 'select', options: [1, 15, 30, 60].map((v) => ({ value: v, label: v === 1 ? 'No rounding' : `${v} minutes` })) }, s.roundingMinutes)}
-      ${fieldHtml({ name: 'weekendMultiplier', label: 'Weekend and holiday multiplier', type: 'number', min: 1, max: 3, step: 0.25, required: true, hint: 'e.g. 1.5 pays time and a half' }, s.weekendMultiplier)}
+      ${fieldHtml({ name: 'weekendMultiplier', label: 'Weekend and holiday multiplier', type: 'number', min: 1, max: 3, step: 'any', required: true, hint: 'e.g. 1.5 pays time and a half' }, s.weekendMultiplier)}
       ${fieldHtml({ name: 'weekStartDay', label: 'Week starts on', type: 'select', options: DAY_NAMES.map((n, i) => ({ value: i, label: n })), hint: 'For weekly running-km reports' }, s.weekStartDay)}
       <fieldset class="field full" style="border:0;padding:0;margin:0"><legend style="font-weight:600;font-size:14px;margin-bottom:6px">Weekend days</legend>
         <div style="display:flex;flex-wrap:wrap;gap:14px">${DAY_NAMES.map((n, i) => `<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="wd${i}" ${s.weekendDays.includes(i) ? 'checked' : ''}> ${n}</label>`).join('')}</div>
