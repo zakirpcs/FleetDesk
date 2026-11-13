@@ -12,6 +12,7 @@ import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from '../shar
 import { driverTripSms, driverCancelSms } from '../shared/sms.js';
 import { tripPapers, paperNote } from '../shared/papers.js';
 import * as audit from '../audit.js';
+import { driverUnavailable } from '../shared/roster.js';
 
 const router = Router();
 const CLASH_MINUTES = 180;   // a driver or car booked within 3 hours counts as a clash
@@ -102,10 +103,18 @@ router.post('/:id/approve', requireRole('lead'), async (req, res) => {
     const current = await lockRequisition(client, req.params.id);
     mustBePending(current);
     const driver = (await client.query('SELECT id, name, mobile, status, "licenseExpiry" FROM drivers WHERE id = $1', [driverId])).rows[0];
+    const leave = (await client.query('SELECT id, "driverId", "startDate", "endDate", kind FROM leave WHERE "driverId" = $1', [driverId])).rows;
     const car = (await client.query('SELECT id, "regNo", make, model, "fitnessExpiry", "taxTokenExpiry", "insuranceExpiry" FROM cars WHERE id = $1', [carId])).rows[0];
     if (!driver) throw new ApiError('That driver no longer exists. Reload the page and choose again.');
     if (!car) throw new ApiError('That car no longer exists. Reload the page and choose again.');
-    if (driver.status !== 'Active') throw new ApiError(`${driver.name} is ${driver.status.toLowerCase()} and cannot be assigned`);
+    // Status covers somebody off the roster altogether; leave covers the fortnight in
+    // March they are away, which is what a trip three weeks out has to be checked against.
+    const away = driverUnavailable(driver, leave, current.requiredDate);
+    if (away) {
+      throw new ApiError(away.why === 'leave'
+        ? `${away.text} — ${away.leave.startDate} to ${away.leave.endDate}. Choose another driver, or change the leave record.`
+        : `${away.text} and cannot be assigned`, away.why === 'leave' ? 409 : 400);
+    }
 
     // Papers have to be valid on the day of the trip, which may be weeks away. A car
     // without fitness, tax token or insurance — or a driver without a licence — must

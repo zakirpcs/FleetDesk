@@ -1,10 +1,11 @@
 // Approvals — AGS team lead reviews requests, assigns driver + car, sends confirmation.
 import { api, loadAll } from '../api.js';
-import { esc, byId, plate, today, fmtTime, mins } from '../utils.js';
+import { esc, byId, plate, today, fmtDate, fmtTime, mins } from '../utils.js';
 import { DataTable, pill, openModal, toast, fieldHtml, icon } from '../ui.js';
 import { confirmEmail } from '../email.js';
 import { shownStatus, when, reqFacts, emailHtml, slipReady, printTripSlip } from './reqshared.js';
 import { tripPapers, paperNote, papersOn, paperTag, CAR_PAPERS, DRIVER_PAPERS, SOON_DAYS } from '../papers.js';
+import { leaveOn, driverUnavailable } from '../roster.js';
 
 export async function render(el, ctx) {
   const canApprove = ctx.can('approve');
@@ -32,7 +33,7 @@ export async function render(el, ctx) {
     return rows;
   };
   const load = async () => {
-    data = await loadAll('requisitions', 'drivers', 'cars', 'outbox', 'settings');
+    data = await loadAll('requisitions', 'drivers', 'cars', 'outbox', 'leave', 'settings');
     data.d = byId(data.drivers); data.c = byId(data.cars);
     if (table) return table.setRows(filter());
     table = new DataTable(el.querySelector('#tbl'), {
@@ -105,8 +106,12 @@ export async function render(el, ctx) {
     const carOpts = data.cars.filter((c) => !['Maintenance', 'Retired'].includes(c.status)).map((c) => ({
       value: c.id, label: `${c.regNo} · ${c.make} ${c.model} (${c.seats} seats)${busyCar[c.id] ? ` · booked ${fmtTime(busyCar[c.id].startTime)}` : ''}${paperFlag(c, CAR_PAPERS)}`,
     }));
+    const awayThatDay = (d) => {
+      const l = leaveOn(data.leave, d.id, r.requiredDate);
+      return l ? ` · on ${l.kind.toLowerCase()} leave` : '';
+    };
     const drvOpts = data.drivers.filter((d) => d.status === 'Active').map((d) => ({
-      value: d.id, label: `${d.name} · ${d.mobile}${busyDriver[d.id] ? ` · booked ${fmtTime(busyDriver[d.id].startTime)}` : ''}${paperFlag(d, DRIVER_PAPERS)}`,
+      value: d.id, label: `${d.name} · ${d.mobile}${busyDriver[d.id] ? ` · booked ${fmtTime(busyDriver[d.id].startTime)}` : ''}${awayThatDay(d)}${paperFlag(d, DRIVER_PAPERS)}`,
     }));
 
     openModal({
@@ -147,11 +152,14 @@ export async function render(el, ctx) {
           // Papers that will have run out by the day of the trip: the API refuses these,
           // so say so here rather than letting the lead press Approve and be told off.
           const { blocked, soon } = tripPapers(drv, car, r.requiredDate);
-          paperBox.textContent = blocked.length
-            ? `${blocked.map((p) => paperNote(p, r.requiredDate)).join(' ')} This trip cannot be booked until the record is renewed.`
-            : '';
-          paperBox.hidden = !blocked.length;
-          approve.disabled = blocked.length > 0;
+          const away = driverUnavailable(drv, data.leave, r.requiredDate);
+          const stops = [
+            ...blocked.map((p) => `${paperNote(p, r.requiredDate)} This trip cannot be booked until the record is renewed.`),
+            ...(away?.why === 'leave' ? [`${away.text} — ${fmtDate(away.leave.startDate)} to ${fmtDate(away.leave.endDate)}. Choose another driver, or change the leave record.`] : []),
+          ];
+          paperBox.textContent = stops.join(' ');
+          paperBox.hidden = !stops.length;
+          approve.disabled = stops.length > 0;
           for (const p of soon) msgs.push(paperNote(p, r.requiredDate));
           clash.textContent = msgs.join(' '); clash.hidden = !msgs.length;
         };

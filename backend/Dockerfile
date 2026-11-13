@@ -26,7 +26,7 @@ COPY db/migrations ./db/migrations
 
 # One definition of the email templates, overtime rules and demo data: copy them
 # from the frontend source instead of maintaining a second implementation.
-COPY frontend/assets/js/utils.js frontend/assets/js/calc.js frontend/assets/js/papers.js frontend/assets/js/email.js frontend/assets/js/sms.js frontend/assets/js/seed.js /tmp/shared/
+COPY frontend/assets/js/utils.js frontend/assets/js/calc.js frontend/assets/js/papers.js frontend/assets/js/roster.js frontend/assets/js/email.js frontend/assets/js/sms.js frontend/assets/js/seed.js /tmp/shared/
 RUN node scripts/sync-shared.mjs /tmp/shared && rm -rf /tmp/shared
 
 USER node

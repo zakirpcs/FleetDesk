@@ -226,5 +226,35 @@ export function seed() {
     requisitions.push(req);
   });
 
-  return { version: 1, settings, drivers, cars, cards, trips, fuel, maintenance, requisitions, outbox };
+  // ---- Leave ----
+  // Enough of a calendar to be worth looking at: somebody away right now, somebody
+  // going later this month, a single day off, and a spell of sick leave behind us.
+  //
+  // Nobody can be away on a day they also drove, so each spell is placed in the
+  // nearest window where that driver has no logbook entry and no booking.
+  const freeWindow = (driverId, wanted, days) => {
+    const busy = new Set([
+      ...trips.filter((t) => t.driverId === driverId).map((t) => t.date),
+      ...requisitions.filter((q) => q.driverId === driverId && q.status === 'Approved').map((q) => q.requiredDate),
+    ]);
+    for (let shift = 0; shift <= 25; shift++) {
+      for (const dir of shift ? [1, -1] : [1]) {
+        const startDate = addDays(wanted, shift * dir);
+        const span = Array.from({ length: days }, (_, i) => addDays(startDate, i));
+        if (!span.some((d) => busy.has(d))) return { startDate, endDate: span[days - 1] };
+      }
+    }
+    return null;
+  };
+  const leave = [
+    ['d6', -2, 6, 'Annual', 'Family wedding, Sylhet'],
+    ['d2', 9, 5, 'Annual', ''],
+    ['d4', 21, 1, 'Casual', 'Day off asked for the week before'],
+    ['d3', -26, 3, 'Sick', 'Fever'],
+  ].map(([driverId, offset, days, kind, notes], i) => {
+    const when = freeWindow(driverId, addDays(T, offset), days);
+    return when && { id: `l${i + 1}`, driverId, ...when, kind, notes };
+  }).filter(Boolean);
+
+  return { version: 1, settings, drivers, cars, cards, trips, fuel, maintenance, requisitions, outbox, leave };
 }

@@ -625,3 +625,34 @@ dl.facts dd { margin: 0; font-weight: 500; }
   border: 1px solid var(--line);
   max-width: 34em;
 }
+
+/* ---------------------------------------------------------------- leave calendar
+   A month per screen: one row per driver, one narrow column per day. The grid
+   scrolls sideways on a phone while the driver column stays put. */
+.cal-wrap { overflow-x: auto; }
+table.cal { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.cal th, table.cal td { border: 1px solid var(--line-soft); }
+table.cal thead th { padding: 4px 0; width: 26px; min-width: 26px; text-align: center; color: var(--ink-3); font-weight: 600; font-size: 12px; }
+table.cal .cal-dow { display: block; font-size: 10px; color: var(--ink-3); text-transform: uppercase; }
+table.cal th.cal-who, table.cal tbody th { width: auto; min-width: 190px; text-align: left; padding: 6px 10px; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+table.cal tbody th { display: table-cell; font-weight: 500; white-space: nowrap; }
+table.cal tbody th .avatar { width: 24px; height: 24px; font-size: 11px; display: inline-grid; vertical-align: middle; margin-right: 8px; }
+table.cal tbody th small { margin-left: 8px; }
+table.cal tbody td { height: 30px; }
+table.cal .weekend { background: var(--paper); }
+table.cal .is-today { box-shadow: inset 0 0 0 1px var(--sign); }
+table.cal thead th.is-today { color: var(--sign); font-weight: 700; }
+/* A spell has to read across a crowded month at a glance, so the blocks are a step
+   stronger than the usual tints and each kind has its own. */
+table.cal td.on-leave { cursor: pointer; background: #bdd8cb; }
+table.cal td.on-leave:focus-visible { outline: none; box-shadow: var(--focus); }
+table.cal td.k-sick { background: #f2c4bf; }
+table.cal td.k-unpaid { background: #f0dba6; }
+table.cal td.k-training { background: #bed3ee; }
+table.cal td.k-casual { background: #bfe3cd; }
+.cal-key { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--ink-2); font-size: 13px; }
+.cal-key i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); margin-right: 6px; vertical-align: -2px; background: #bdd8cb; }
+.cal-key i.k-sick { background: #f2c4bf; }
+.cal-key i.k-unpaid { background: #f0dba6; }
+.cal-key i.k-training { background: #bed3ee; }
+.cal-key i.k-casual { background: #bfe3cd; }

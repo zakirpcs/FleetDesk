@@ -5,9 +5,10 @@ import { hbarChart, vbarChart, pill } from '../ui.js';
 import { overtimeDays, tripKm } from '../calc.js';
 import { papers } from './cars.js';
 import { serviceDue } from './maintenance.js';
+import { leaveOn } from '../roster.js';
 
 export async function render(el) {
-  const data = await loadAll('cars', 'drivers', 'cards', 'trips', 'fuel', 'maintenance', 'requisitions', 'settings');
+  const data = await loadAll('cars', 'drivers', 'cards', 'trips', 'fuel', 'maintenance', 'requisitions', 'leave', 'settings');
   const c = byId(data.cars), d = byId(data.drivers);
   const T = today(), m = thisMonth();
   const monthTrips = data.trips.filter((t) => t.date.startsWith(m));
@@ -47,7 +48,13 @@ export async function render(el) {
   const crew = { out: [], free: [], off: [] };
   for (const dr of data.drivers) {
     const lead = `<span class="avatar" aria-hidden="true">${initials(dr.name)}</span>`;
-    if (dr.status !== 'Active') { crew.off.push({ lead, who: dr.name, note: dr.status }); continue; }
+    // Off today either because they are not on the roster, or because the leave
+    // calendar says so — the second is the common one and used to be invisible.
+    const away = leaveOn(data.leave, dr.id, T);
+    if (dr.status !== 'Active' || away) {
+      crew.off.push({ lead, who: dr.name, note: away ? `${away.kind} leave, back ${fmtShort(addDays(away.endDate, 1))}` : dr.status });
+      continue;
+    }
     const booking = bookedToday.find((r) => r.driverId === dr.id);
     const trip = todayTrips.find((t) => t.driverId === dr.id);
     if (booking) crew.out.push({ lead, who: dr.name, note: `${fmtTime(booking.startTime)} · ${shortPlate(c[booking.carId])} to ${booking.destination}` });

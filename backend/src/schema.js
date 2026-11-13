@@ -19,7 +19,7 @@ export const COLLECTIONS = {
     required: ['empId', 'name', 'licenseNo'],
     unique: [['empId', 'Employee ID'], ['licenseNo', 'Licence number']],
     enums: { status: ['Active', 'On leave', 'Inactive'] },
-    refs: [['trips', 'driverId', 'logbook entries'], ['fuel', 'driverId', 'fuel entries'], ['requisitions', 'driverId', 'requisitions'], ['cars', 'driverId', 'cars']],
+    refs: [['trips', 'driverId', 'logbook entries'], ['fuel', 'driverId', 'fuel entries'], ['requisitions', 'driverId', 'requisitions'], ['cars', 'driverId', 'cars'], ['leave', 'driverId', 'leave records']],
   },
 
   cars: {
@@ -97,6 +97,19 @@ export const COLLECTIONS = {
     },
     required: ['date', 'carId', 'kind'],
     enums: { kind: ['Service', 'Repair', 'Tyres', 'Battery', 'Bodywork', 'Inspection', 'Other'] },
+    refs: [],
+  },
+
+  // Driver leave, as periods. See roster.js for the rule this feeds.
+  leave: {
+    idPrefix: 'l',
+    writable: true,
+    order: '"startDate" DESC',
+    fields: {
+      driverId: 'ref:drivers', startDate: 'date', endDate: 'date', kind: 'text', notes: 'text',
+    },
+    required: ['driverId', 'startDate', 'endDate'],
+    enums: { kind: ['Annual', 'Sick', 'Casual', 'Unpaid', 'Training', 'Other'] },
     refs: [],
   },
 

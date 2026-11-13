@@ -22,7 +22,7 @@ export const CONFIG = {
   onUnauthorized: null,
 };
 
-export const COLLECTIONS = ['drivers', 'cars', 'cards', 'trips', 'fuel', 'maintenance', 'requisitions', 'outbox'];
+export const COLLECTIONS = ['drivers', 'cars', 'cards', 'trips', 'fuel', 'maintenance', 'leave', 'requisitions', 'outbox'];
 
 export class ApiError extends Error {
   constructor(message, status = 400, details) { super(message); this.status = status; this.details = details; }

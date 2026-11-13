@@ -149,8 +149,37 @@ async function main() {
   ok('a workshop reading moves the car odometer', (await call('GET', `/cars/${car.id}`)).data.odometer === 1180, String((await call('GET', `/cars/${car.id}`)).data.odometer));
   ok('employees cannot see the workshop records → 403', (await call('GET', '/maintenance', { role: 'employee' })).status === 403);
   const { data: carGone } = await call('DELETE', `/cars/${car.id}`);
-  ok('a car with workshop history cannot be deleted', /workshop records|logbook entries|fuel entries/.test(carGone?.message || ''), carGone?.message);
+  ok('a car with workshop history cannot be deleted', /workshop record|logbook entr|fuel entr/.test(carGone?.message || ''), carGone?.message);
   ok('DELETE /maintenance/:id', (await call('DELETE', `/maintenance/${job.id}`)).status === 204);
+
+  // ---- driver leave
+  const leaveFrom = addDays(18), leaveTo = addDays(22), tripDay = addDays(20);
+  const spell = await call('POST', '/leave', { body: { driverId: driver.id, startDate: leaveFrom, endDate: leaveTo, kind: 'Annual', notes: 'Smoke test leave' } });
+  ok('POST /leave', spell.status === 201 && spell.data?.id, `${spell.status} ${JSON.stringify(spell.data)}`);
+  ok('an overlapping spell for the same driver → 409', (await call('POST', '/leave', { body: { driverId: driver.id, startDate: addDays(21), endDate: addDays(25) } })).status === 409);
+  ok('ending before it starts → 400', (await call('POST', '/leave', { body: { driverId: driver.id, startDate: addDays(60), endDate: addDays(59) } })).status === 400);
+  ok('an unknown kind of leave → 400', (await call('POST', '/leave', { body: { driverId: driver.id, startDate: addDays(60), endDate: addDays(60), kind: 'Holiday' } })).status === 400);
+  ok('employees cannot see the roster → 403', (await call('GET', '/leave', { role: 'employee' })).status === 403);
+  const driverGone = await call('DELETE', `/drivers/${driver.id}`);
+  ok('a driver in use cannot be deleted', driverGone.status === 409 && /Cannot delete: used in/.test(driverGone.data?.message || ''), driverGone.data?.message);
+  const leaveOnly = await call('POST', '/drivers', { body: { empId: `SMOKE-LV-${stamp}`, name: 'Smoke Leave Only', licenseNo: `SMOKE-LV-${stamp}`, status: 'Active' } });
+  const onlySpell = await call('POST', '/leave', { body: { driverId: leaveOnly.data.id, startDate: addDays(40), endDate: addDays(42) } });
+  const heldByLeave = await call('DELETE', `/drivers/${leaveOnly.data.id}`);
+  ok('leave alone is enough to hold a driver record', heldByLeave.status === 409 && /leave record/.test(heldByLeave.data?.message || ''), heldByLeave.data?.message);
+  await call('DELETE', `/leave/${onlySpell.data.id}`);
+  ok('and the driver goes once the leave does', (await call('DELETE', `/drivers/${leaveOnly.data.id}`)).status === 204);
+
+  const { data: awayReq } = await call('POST', '/requisitions', {
+    role: 'employee',
+    body: { name: 'Tahmina Akter', designation: 'Senior Executive, HR', email: EMPLOYEE_EMAIL, requiredDate: tripDay, startTime: '11:00', startPoint: 'Head office', destination: 'Leave test', reason: 'Leave test' },
+  });
+  const onLeave = await call('POST', `/requisitions/${awayReq.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('a driver on leave cannot be given that trip → 409', onLeave.status === 409 && /leave/.test(onLeave.data?.message || ''), `${onLeave.status} ${onLeave.data?.message}`);
+  ok('the refusal says which days', (onLeave.data?.message || '').includes(leaveFrom) && onLeave.data.message.includes(leaveTo));
+  ok('DELETE /leave/:id', (await call('DELETE', `/leave/${spell.data.id}`)).status === 204);
+  const leaveLifted = await call('POST', `/requisitions/${awayReq.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('once the leave is gone the same trip approves', leaveLifted.status === 200, `${leaveLifted.status} ${leaveLifted.data?.message}`);
+  await call('POST', `/requisitions/${awayReq.id}/cancel`, { body: { reason: 'Smoke test tidy-up' } });
 
   // ---- requisition workflow
   const { status: rs, data: reqn } = await call('POST', '/requisitions', {

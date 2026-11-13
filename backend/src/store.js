@@ -9,6 +9,8 @@ import * as audit from './audit.js';
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 const q = (client, text, params) => (client || pool).query(text, params);
+// "used in 1 logbook entry", not "1 logbook entries".
+const plural = (n, label) => (n === 1 ? label.replace(/ies$/, 'y').replace(/s$/, '') : label);
 
 export async function list(name, { where = '', params = [], order } = {}) {
   const s = spec(name);
@@ -51,6 +53,15 @@ async function checkRules(client, name, rec, existingId) {
     if (rec.endTime && rec.startTime && rec.endTime <= rec.startTime) throw new ApiError('End time must be after start time');
     const { rows } = await q(client, 'SELECT 1 FROM trips WHERE date = $1 AND "carId" = $2 AND id <> $3 LIMIT 1', [rec.date, rec.carId, existingId || '']);
     if (rows.length) throw new ApiError('This car already has a logbook entry for that date. Edit the existing entry instead.', 409);
+  }
+  if (name === 'leave') {
+    if (rec.endDate < rec.startDate) throw new ApiError('Leave cannot end before it starts');
+    // Two spells for the same driver that overlap mean one of them is wrong.
+    const { rows } = await q(client,
+      `SELECT "startDate", "endDate" FROM leave
+        WHERE "driverId" = $1 AND id <> $2 AND "startDate" <= $4 AND "endDate" >= $3 LIMIT 1`,
+      [rec.driverId, existingId || '', rec.startDate, rec.endDate]);
+    if (rows.length) throw new ApiError(`This driver is already down as away from ${rows[0].startDate} to ${rows[0].endDate}. Change that record instead.`, 409);
   }
   if (name === 'fuel') {
     if (!(Number(rec.qty) > 0)) throw new ApiError('Quantity must be more than zero');
@@ -146,7 +157,7 @@ export function remove(name, id) {
     const gone = serialise(name, rows[0]);
     for (const [other, field, label] of spec(name).refs || []) {
       const { rows: used } = await q(client, `SELECT count(*)::int AS n FROM ${other} WHERE "${field}" = $1`, [id]);
-      if (used[0].n) throw new ApiError(`Cannot delete: used in ${used[0].n} ${label}. Mark it inactive instead.`, 409);
+      if (used[0].n) throw new ApiError(`Cannot delete: used in ${used[0].n} ${plural(used[0].n, label)}. Mark it inactive instead.`, 409);
     }
     await q(client, `DELETE FROM ${name} WHERE id = $1`, [id]);
     await audit.deleted(client, name, gone);

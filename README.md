@@ -25,6 +25,7 @@ on an isolated network.
 | Daily logbook | AGS | One entry per car per day: driver, duty start and end, odometer at start and end |
 | Fuel loads | AGS | Every refuel with the card used, plus a by-card summary |
 | Servicing and repairs | AGS | Every workshop visit — what was done, what it cost, the odometer at the time — and when each car is next due, which the dashboard warns about |
+| Driver leave | AGS | A month at a glance: a row per driver, a column per day, shaded where somebody is away. A driver on leave cannot be given a trip that day |
 | Running km | AGS | Km per car by week and by month |
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
@@ -115,9 +116,9 @@ from `<meta name="fleetdesk-mode">` in `frontend/index.html`, which the containe
 rewrites on start — so the same files serve both the container stack (`api`) and the
 browser-only demo (`mock`).
 
-The email and SMS templates, the overtime and running-km rules, the papers rule and
-the demo data generator are shared: `backend/scripts/sync-shared.mjs` copies
-`frontend/assets/js/{utils,calc,papers,email,sms,seed}.js` into `backend/src/shared/`
+The email and SMS templates, the overtime and running-km rules, the papers and roster
+rules and the demo data generator are shared: `backend/scripts/sync-shared.mjs` copies
+`frontend/assets/js/{utils,calc,papers,roster,email,sms,seed}.js` into `backend/src/shared/`
 when the API image is built. The confirmation email the team lead previews before
 approving is rendered by the same module that sends it, and the expiry warning shown
 in the approval screen is the same rule the API enforces.
@@ -259,6 +260,23 @@ Clearing the gateway address, or turning **Send driver texts** off, holds them i
 log without sending — nothing is lost, and **Send again** picks them up once a gateway
 is in place.
 
+## Driver leave
+
+`drivers.status` says whether somebody is on the roster at all. It cannot say that
+Jamal is away from the 14th to the 20th, so a trip on the 16th could be given to him in
+good faith. **Daily records → Driver leave** is that calendar: a month at a glance, one
+row per driver, one column per day, shaded where somebody is away and coloured by the
+kind of leave — annual, sick, casual, unpaid, training or other.
+
+Click any shaded day, or a row in the list below the grid, to change or delete that
+spell. Two overlapping spells for the same driver are refused, in the browser and again
+at the API, as is a spell that ends before it starts.
+
+What it is for: **a driver on leave cannot be given a trip that day.** The approval
+screen marks them in the dropdown (`· on annual leave`), explains the problem and
+disables **Approve**, and the API refuses it too. The dashboard's *On leave* column now
+means the calendar as well as the status flag, and says when each person is back.
+
 ## Papers and licences
 
 A trip booked for next month needs papers that are valid next month. So when the team
@@ -389,13 +407,14 @@ frontend/                     Everything the browser is served
 │       ├── api.js            Data layer: the REST backend, or mock data in the browser
 │       ├── calc.js           Overtime and running-km rules
 │       ├── papers.js         Whether papers and licences are valid on a given day
+│       ├── roster.js          Whether a driver is available on a given day
 │       ├── email.js          Email templates (request, confirmation, rejection, cancellation)
 │       ├── sms.js            SMS templates — one text each for a trip and a cancellation
 │       ├── seed.js           Demo data and default settings
 │       ├── ui.js             Tables, forms, modals, charts, toasts
 │       ├── utils.js          Formatting and date helpers
 │       ├── login.js          Sign-in page logic
-│       └── views/            One file per page, 19 of them
+│       └── views/            One file per page, 20 of them
 ├── Dockerfile                Nginx image (unprivileged, port 8080)
 ├── nginx.conf                Static files, security headers, /api/ proxy
 └── entrypoint/               Sets the data mode from FLEETDESK_MODE
@@ -426,14 +445,14 @@ backend/                      The REST API
 ├── package.json              start · seed · smoke · shared
 └── Dockerfile                API image (Node 22)
 
-db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms · 007 reminders · 008 audit
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms · 007 reminders · 008 audit · 009 leave
 docs/screenshots/             The images in this README
 API_CONTRACT.md               What the backend provides
 LICENSE                       MIT
 ```
 
-Two of those deserve a note. `frontend/assets/js/{utils,calc,papers,email,sms,seed}.js`
-are the single definition of the templates, the overtime and papers rules and the demo data: the
+Two of those deserve a note. `frontend/assets/js/{utils,calc,papers,roster,email,sms,seed}.js`
+are the single definition of the templates, the overtime, papers and roster rules and the demo data: the
 API image copies them into `backend/src/shared/` when it is built, so the two sides
 cannot drift apart — edit them in `frontend/`, never in `backend/src/shared/`. And
 `db/migrations/` is the only place the schema is described; the API applies whatever

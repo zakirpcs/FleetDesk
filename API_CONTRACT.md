@@ -96,6 +96,8 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 **requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
 `remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
+**leave**: `id, driverId, startDate, endDate, kind (Annual | Sick | Casual | Unpaid | Training | Other), notes` — staff only; an employee gets 403
+
 **outbox**: `id, sentAt, channel (email | sms), status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation | reminder), reqId, to, cc, from, subject, html, text, attempts, error` — a `reminder` has no `reqId`
 `error` carries the mail server's own words when a send failed, so the Email log can show why.
 
@@ -129,6 +131,8 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 - After a trip, fuel or maintenance write, raise `cars.odometer` to the new reading if it is higher
 - DELETE on a driver, car or card that is referenced by trips, fuel, maintenance or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
 - Every successful write to a collection, to `users`, to `settings` and through the requisition workflow appends one `audit` row on the same transaction
+- `leave`: `endDate >= startDate`; two spells for the same driver may not overlap → 409. A driver cannot be deleted while any leave is on file
+- Approval refuses a driver whose `status` is not `Active` (400), or who has leave covering `requiredDate` (409 naming the dates). Both are checked before the papers
 - `settings.reminders`: `every` is `day` or `week`, `weekday` 0–6, `sendAt` HH:MM, `days` 1–365, `to` a comma-separated list of addresses (empty = the team lead) → 400
 - Approval checks papers against the **trip date**, not today: `cars.fitnessExpiry`, `cars.taxTokenExpiry`, `cars.insuranceExpiry` and `drivers.licenseExpiry` must not fall before `requisitions.requiredDate` → 409 naming each one. An expiry on the trip date itself is still valid, and a date left blank blocks nothing. The rule lives in `frontend/assets/js/papers.js`, mirrored into `backend/src/shared/`
 
