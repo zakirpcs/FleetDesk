@@ -7,6 +7,7 @@ import { ROLES, requireRole, passwordMode } from '../auth.js';
 import * as sessions from '../sessions.js';
 import { hashPassword, checkPasswordQuality, temporaryPassword } from '../password.js';
 import { uid } from '../store.js';
+import * as audit from '../audit.js';
 
 const router = Router();
 const SELECT = `SELECT id, email, name, designation, mobile, role, status,
@@ -59,6 +60,7 @@ router.post('/', async (req, res) => {
      RETURNING id, email, name, designation, mobile, role, status, "mustChangePassword", "createdAt", "lastLoginAt"`,
     [uid('u'), email, name, clean(req.body?.designation, 80), clean(req.body?.mobile, 40), role, await hashPassword(password)],
   );
+  await audit.created(null, 'users', rows[0]);
   // Shown once, so the lead can hand it over; it is never readable again.
   res.status(201).json({ ...rows[0], temporaryPassword: password });
 });
@@ -87,6 +89,7 @@ router.patch('/:id', async (req, res) => {
       WHERE id = $1 RETURNING id, email, name, designation, mobile, role, status, "mustChangePassword", "createdAt", "lastLoginAt"`,
     [user.id, patch.name, patch.designation, patch.mobile, patch.role, patch.status],
   );
+  await audit.updated(null, 'users', user, rows[0]);
   // A disabled account loses its sessions straight away; so does a changed role.
   if (patch.status !== 'Active' || patch.role !== user.role) await sessions.destroyAllFor(user.email);
   res.json(rows[0]);
@@ -101,6 +104,8 @@ router.post('/:id/password', async (req, res) => {
   await query('UPDATE users SET "passwordHash" = $2, "mustChangePassword" = true WHERE id = $1',
     [user.id, await hashPassword(password)]);
   await sessions.destroyAllFor(user.email);
+  // The password itself is never written down, here least of all.
+  await audit.record(null, { action: 'password reset', entity: 'users', entityId: user.id, label: user.email });
   res.json({ id: user.id, email: user.email, temporaryPassword: password });
 });
 
@@ -116,6 +121,7 @@ router.delete('/:id', async (req, res) => {
   await tx(async (client) => {
     await client.query('DELETE FROM sessions WHERE "userEmail" = $1', [user.email]);
     await client.query('DELETE FROM users WHERE id = $1', [user.id]);
+    await audit.deleted(client, 'users', user);
   });
   res.status(204).end();
 });

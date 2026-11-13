@@ -160,6 +160,7 @@ const mock = {
   testMail: () => { throw new ApiError('Sending email needs the backend connected'); },
   testSms: () => { throw new ApiError('Sending SMS needs the backend connected'); },
   testReminder: () => { throw new ApiError('Sending the reminder needs the backend connected'); },
+  auditTrail: () => delay([]),           // the trail is the server's: nothing to show in demo mode
   retryEmail: () => { throw new ApiError('Sending email needs the backend connected'); },
 
   submitRequisition(data) {
@@ -239,6 +240,7 @@ const real = {
   testMail: (to) => http('POST', '/settings/mail-test', { to }),
   testSms: (to) => http('POST', '/settings/sms-test', { to }),
   testReminder: (to) => http('POST', '/settings/reminder-test', { to }),
+  auditTrail: (q = {}) => http('GET', `/audit?${new URLSearchParams(Object.entries(q).filter(([, v]) => v))}`),
   retryEmail: (id) => http('POST', `/outbox/${id}/retry`),
   submitRequisition: (data) => http('POST', '/requisitions', data),
   approveRequisition: (id, body) => http('POST', `/requisitions/${id}/approve`, body),

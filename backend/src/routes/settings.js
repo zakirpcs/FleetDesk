@@ -8,6 +8,7 @@ import { resolveSmtp, buildTransport } from '../mailer.js';
 import { resolveSms, sendSms, buildRequest } from '../sms.js';
 import { testSms } from '../shared/sms.js';
 import { sendDigest } from '../reminders.js';
+import * as audit from '../audit.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -42,9 +43,21 @@ async function visible(settings, user) {
 router.get('/', async (req, res) => res.json(await visible(await getSettings(), req.user)));
 
 router.put('/', requireRole('lead'), async (req, res) => {
+  const before = await getSettings();
   const saved = await putSettings(req.body);
+  // One level deep, so a changed SMTP port reads as smtp.port rather than as the
+  // whole block. The mail password and the API key are not in this document at all.
+  const changes = audit.diff(flatten(before), flatten(saved));
+  if (Object.keys(changes).length) {
+    await audit.record(null, { action: 'updated', entity: 'settings', entityId: 'settings', label: 'Settings', changes });
+  }
   res.json(await visible(saved, req.user));
 });
+
+const flatten = (doc) => Object.fromEntries(Object.entries(doc).flatMap(([k, v]) => (
+  v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.entries(v).map(([k2, v2]) => [`${k}.${k2}`, v2])
+    : [[k, v]])));
 
 /**
  * Send one message through the mail server as it is configured right now, and report

@@ -21,6 +21,7 @@ const I = {
   overtime: P('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>'),
   outbox: P('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
   assignments: P('<path d="M4 8h12M13 5l3 3-3 3"/><path d="M20 16H8M11 13l-3 3 3 3"/>'),
+  activity: P('<path d="M3 12h4l2.5-6 4 13L16 12h5"/>'),
   users: P('<circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c.8-3.4 3.6-5 6.5-5s5.7 1.6 6.5 5"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M18 15.4c2 .6 3.3 2.2 3.8 4.6"/>'),
   account: P('<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c.9-3.6 3.9-5.4 7.5-5.4s6.6 1.8 7.5 5.4"/>'),
   signout: P('<path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h11"/>'),
@@ -46,6 +47,7 @@ export const ROUTES = [
   { path: 'assignments', title: 'Assignment history', group: 'Reports', roles: STAFF, load: () => import('./views/assignments.js') },
   { path: 'outbox', title: 'Message log', group: 'Admin', roles: STAFF, load: () => import('./views/outbox.js') },
   { path: 'users', title: 'People and access', group: 'Admin', roles: ['lead'], load: () => import('./views/users.js'), icon: 'users', backend: true },
+  { path: 'activity', title: 'Activity', group: 'Admin', roles: ['lead'], load: () => import('./views/activity.js'), backend: true },
   { path: 'settings', title: 'Settings', group: 'Admin', roles: ['lead'], load: () => import('./views/settings.js'), tabbed: true },
   // Reached from the user menu rather than the menu bar.
   { path: 'account', title: 'My account', group: 'Account', roles: ALL, load: () => import('./views/account.js'), icon: 'account', hidden: true, backend: true },

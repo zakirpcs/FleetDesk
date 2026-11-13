@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { errorHandler, ApiError } from './errors.js';
 import { pool, waitForDatabase, value } from './db.js';
 import { attachUser, requireUser, blockUntilPasswordChanged } from './auth.js';
+import { withActor } from './context.js';
 import { startRetryWorker } from './mailer.js';
 import { startSweeper } from './sessions.js';
 import { startReminderWorker } from './reminders.js';
@@ -15,6 +16,7 @@ import meRouter from './routes/me.js';
 import settingsRouter from './routes/settings.js';
 import requisitionsRouter from './routes/requisitions.js';
 import reportsRouter from './routes/reports.js';
+import auditRouter from './routes/audit.js';
 import collectionsRouter from './routes/collections.js';
 
 const app = express();
@@ -37,12 +39,16 @@ const api = express.Router();
 api.use(attachUser);
 api.use('/auth', authRouter);                   // reachable before signing in
 api.use(requireUser);                           // everything below needs a session
+// Who is calling, carried out of band so the audit trail can name them without
+// every function in between having to pass a user along. See context.js.
+api.use((req, res, next) => withActor(req.user, req.ip, next));
 api.use('/me', meRouter);
 api.use(blockUntilPasswordChanged);
 api.use('/users', usersRouter);
 api.use('/settings', settingsRouter);
 api.use('/requisitions', requisitionsRouter);   // workflow first: /requisitions/conflicts
 api.use('/reports', reportsRouter);
+api.use('/audit', auditRouter);
 api.use('/', collectionsRouter);                // generic CRUD for the rest
 app.use(config.basePath, api);
 

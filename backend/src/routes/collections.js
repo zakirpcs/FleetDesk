@@ -67,7 +67,7 @@ router.post('/outbox/:id/retry', async (req, res) => {
 // queued is simply never sent.
 router.delete('/outbox/:id', async (req, res) => {
   if (req.user.role !== 'lead') throw new ApiError('Only the AGS team lead can delete from the message log.', 403);
-  await store.remove('outbox', req.params.id);
+  await store.remove('outbox', req.params.id);   // store.remove records it in the audit trail
   res.status(204).end();
 });
 

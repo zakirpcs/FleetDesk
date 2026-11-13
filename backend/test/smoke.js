@@ -332,6 +332,29 @@ async function main() {
   ok('a window of no days → 400', (await call('PUT', '/settings', { body: { reminders: { days: 0 } } })).status === 400);
   await call('PUT', '/settings', { body: { reminders: { enabled: true, every: 'week', weekday: 0, sendAt: '08:00', days: 30, to: '' } } });
 
+  // ---- the audit trail. Everything above this line has been writing to it.
+  const { status: trailStatus, data: trail } = await call('GET', '/audit');
+  ok('GET /audit', trailStatus === 200 && Array.isArray(trail), `${trailStatus} ${trail?.length} entries`);
+  ok('AGS staff cannot read it → 403', (await call('GET', '/audit', { role: 'ags' })).status === 403);
+  ok('employees cannot read it → 403', (await call('GET', '/audit', { role: 'employee' })).status === 403);
+  ok('nothing can be written to it', [404, 405].includes((await call('POST', '/audit', { body: { action: 'x' } })).status));
+  ok('nor deleted from it', [404, 405].includes((await call('DELETE', `/audit/${trail[0]?.id}`)).status));
+
+  const carTrail = trail.filter((r) => r.entity === 'cars' && r.entityId === car.id);
+  ok('the car this test made is in the trail', carTrail.some((r) => r.action === 'created'), carTrail.map((r) => r.action).join(', '));
+  const carEdit = carTrail.find((r) => r.action === 'updated');
+  ok('a change records the field, before and after', carEdit && Object.values(carEdit.changes).every((c) => 'from' in c && 'to' in c), JSON.stringify(carEdit?.changes).slice(0, 120));
+  ok('the person who made it is named', carTrail[0]?.actorEmail === ACCOUNTS.lead && carTrail[0]?.actorRole === 'lead', `${carTrail[0]?.actorName} <${carTrail[0]?.actorEmail}>`);
+  ok('a record keeps its label after it is gone', trail.some((r) => r.action === 'deleted' && r.label), trail.find((r) => r.action === 'deleted')?.label);
+  ok('the approval is on the request, with who did it', trail.some((r) => r.entity === 'requisitions' && r.action === 'approved' && r.entityId === reqn.id));
+  ok('so is the self-cancellation, under the requester', trail.some((r) => r.action === 'cancelled' && r.actorEmail === EMPLOYEE_EMAIL));
+  ok('settings changes are recorded field by field', trail.some((r) => r.entity === 'settings' && Object.keys(r.changes).length));
+  ok('no password or hash is ever in the trail', !/passwordHash|temporaryPassword/.test(JSON.stringify(trail)));
+  ok('filtering by kind', (await call('GET', '/audit?entity=cars')).data.every((r) => r.entity === 'cars'));
+  ok('filtering by person', (await call('GET', `/audit?actor=${EMPLOYEE_EMAIL}`)).data.every((r) => r.actorEmail === EMPLOYEE_EMAIL));
+  ok('filtering by date', (await call('GET', `/audit?from=${addDays(1)}`)).data.length === 0);
+  ok('newest first', trail.length < 2 || trail[0].at >= trail[1].at);
+
   // ---- reports
   const month = today().slice(0, 7);
   for (const [name, path] of [

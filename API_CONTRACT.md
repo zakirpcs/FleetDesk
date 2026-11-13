@@ -99,6 +99,10 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 **outbox**: `id, sentAt, channel (email | sms), status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation | reminder), reqId, to, cc, from, subject, html, text, attempts, error` — a `reminder` has no `reqId`
 `error` carries the mail server's own words when a send failed, so the Email log can show why.
 
+**audit** (read-only, `lead` only): `id, at, actorEmail, actorName, actorRole, action (created | updated | deleted | submitted | approved | rejected | cancelled | password reset), entity, entityId, label, changes { field: { from, to } }, ip`
+
+`GET /audit?entity=&entityId=&actor=&action=&from=&to=&limit=` — newest first, `limit` defaults to 500 and is capped at 5000. There is no POST, PATCH or DELETE: one row is written beside each change, in the same transaction, and the table itself refuses `UPDATE` and `DELETE`. `changes` holds only the fields that moved, each side truncated to 200 characters; `label` is the record's human handle (registration number, request number, email), kept on the entry so it survives the record being deleted. Changes with no signed-in actor behind them — the seeder, the mail retry worker, the expiry reminder — are not recorded. Passwords and password hashes never appear.
+
 **settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }, smtp { host, port, encryption (none | starttls | tls), user, fromName }, sms { … }, reminders { enabled, every (day | week), weekday, sendAt, days, to }`
 
 The `reminders` block drives the standing expiry digest: a worker in the API checks a
@@ -124,6 +128,7 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 - `fuel`: `qty > 0`; the card, if given, must be `Active` → 400
 - After a trip, fuel or maintenance write, raise `cars.odometer` to the new reading if it is higher
 - DELETE on a driver, car or card that is referenced by trips, fuel, maintenance or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
+- Every successful write to a collection, to `users`, to `settings` and through the requisition workflow appends one `audit` row on the same transaction
 - `settings.reminders`: `every` is `day` or `week`, `weekday` 0–6, `sendAt` HH:MM, `days` 1–365, `to` a comma-separated list of addresses (empty = the team lead) → 400
 - Approval checks papers against the **trip date**, not today: `cars.fitnessExpiry`, `cars.taxTokenExpiry`, `cars.insuranceExpiry` and `drivers.licenseExpiry` must not fall before `requisitions.requiredDate` → 409 naming each one. An expiry on the trip date itself is still valid, and a date left blank blocks nothing. The rule lives in `frontend/assets/js/papers.js`, mirrored into `backend/src/shared/`
 

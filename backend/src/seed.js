@@ -21,7 +21,7 @@ export const DEMO_USERS = [
   { email: 'ags.lead@company.local', name: 'Shafiqul Alam', designation: 'Team Lead, AGS', role: 'lead' },
 ];
 
-const TABLES = ['outbox', 'fuel', 'maintenance', 'trips', 'requisitions', 'cards', 'cars', 'drivers'];   // child → parent
+const TABLES = ['audit', 'outbox', 'fuel', 'maintenance', 'trips', 'requisitions', 'cards', 'cars', 'drivers'];   // child → parent
 const OUTBOX_FIELDS = ['sentAt', 'status', 'channel', 'kind', 'reqId', 'to', 'cc', 'from', 'subject', 'html', 'text'];
 
 export async function ensureUsers(client) {

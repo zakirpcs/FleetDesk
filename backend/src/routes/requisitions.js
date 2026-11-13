@@ -11,6 +11,7 @@ import { queue, deliverSoon, smsMessage } from '../mailer.js';
 import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from '../shared/email.js';
 import { driverTripSms, driverCancelSms } from '../shared/sms.js';
 import { tripPapers, paperNote } from '../shared/papers.js';
+import * as audit from '../audit.js';
 
 const router = Router();
 const CLASH_MINUTES = 180;   // a driver or car booked within 3 hours counts as a clash
@@ -82,6 +83,7 @@ router.post('/', async (req, res) => {
       cols.map((c) => rec[c]),
     );
     const out = serialise('requisitions', rows[0]);
+    await audit.record(client, { action: 'submitted', entity: 'requisitions', entityId: out.id, label: out.reqNo, changes: audit.asNew(out) });
     return { created: out, mailId: await queue(client, newRequestEmail(out, settings)) };
   });
   await deliverSoon([mailId]);
@@ -129,6 +131,7 @@ router.post('/:id/approve', requireRole('lead'), async (req, res) => {
       [current.id, driverId, carId, remarks, req.user.name || settings.teamLeadName],
     );
     const out = serialise('requisitions', rows[0]);
+    await audit.record(client, { action: 'approved', entity: 'requisitions', entityId: out.id, label: out.reqNo, changes: audit.diff(current, out) });
     const ids = [await queue(client, confirmEmail(out, driver, car, settings))];
     // The driver is the one who has to turn up; a text reaches them on the road.
     if (driver.mobile) {
@@ -157,6 +160,7 @@ router.post('/:id/reject', requireRole('lead'), async (req, res) => {
       [current.id, remarks, req.user.name || settings.teamLeadName],
     );
     const out = serialise('requisitions', rows[0]);
+    await audit.record(client, { action: 'rejected', entity: 'requisitions', entityId: out.id, label: out.reqNo, changes: audit.diff(current, out) });
     return { rejected: out, mailId: await queue(client, rejectEmail(out, settings)) };
   });
   await deliverSoon([mailId]);
@@ -194,6 +198,7 @@ router.post('/:id/cancel', async (req, res) => {
       [current.id, req.user.name || req.user.email, reason],
     );
     const out = serialise('requisitions', rows[0]);
+    await audit.record(client, { action: 'cancelled', entity: 'requisitions', entityId: out.id, label: out.reqNo, changes: audit.diff(current, out) });
 
     // AGS only needs telling when a car and driver had been committed to it.
     if (current.status !== 'Approved') return { cancelled: out, mailIds: [] };

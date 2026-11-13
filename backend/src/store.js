@@ -4,6 +4,7 @@
 import { ApiError, notFound } from './errors.js';
 import { pool, tx } from './db.js';
 import { COLLECTIONS, spec, selectList, serialise, coerce, references } from './schema.js';
+import * as audit from './audit.js';
 
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -110,14 +111,19 @@ export async function insert(client, name, record) {
   return serialise(name, rows[0]);
 }
 
-export const create = (name, body) => tx((client) => insert(client, name, coerce(name, body, 'create')));
+export const create = (name, body) => tx(async (client) => {
+  const made = await insert(client, name, coerce(name, body, 'create'));
+  await audit.created(client, name, made);
+  return made;
+});
 
 export function update(name, id, body) {
   const patch = coerce(name, body, 'patch');
   return tx(async (client) => {
     const { rows: found } = await q(client, `SELECT ${selectList(name)} FROM ${name} WHERE id = $1 FOR UPDATE`, [id]);
     if (!found[0]) throw notFound();
-    const next = derive(name, { ...serialise(name, found[0]), ...patch });
+    const before = serialise(name, found[0]);
+    const next = derive(name, { ...before, ...patch });
     delete next.id;
     await checkUnique(client, name, next, id);
     await checkReferences(client, name, next);
@@ -127,19 +133,23 @@ export function update(name, id, body) {
     const forDb = toDb(name, next);
     const { rows } = await q(client, sql, [id, ...cols.map((c) => forDb[c])]);
     await bumpOdometer(client, name, { ...next, id });
-    return serialise(name, rows[0]);
+    const after = serialise(name, rows[0]);
+    await audit.updated(client, name, before, after);
+    return after;
   });
 }
 
 export function remove(name, id) {
   return tx(async (client) => {
-    const { rows } = await q(client, `SELECT id FROM ${name} WHERE id = $1`, [id]);
+    const { rows } = await q(client, `SELECT ${selectList(name)} FROM ${name} WHERE id = $1`, [id]);
     if (!rows[0]) throw notFound();
+    const gone = serialise(name, rows[0]);
     for (const [other, field, label] of spec(name).refs || []) {
       const { rows: used } = await q(client, `SELECT count(*)::int AS n FROM ${other} WHERE "${field}" = $1`, [id]);
       if (used[0].n) throw new ApiError(`Cannot delete: used in ${used[0].n} ${label}. Mark it inactive instead.`, 409);
     }
     await q(client, `DELETE FROM ${name} WHERE id = $1`, [id]);
+    await audit.deleted(client, name, gone);
     return null;
   });
 }

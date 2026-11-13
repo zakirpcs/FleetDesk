@@ -31,6 +31,7 @@ on an isolated network.
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
 | Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations, expiry reminders), why any of them failed, and a way to send it again. The team lead can delete entries |
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
+| Activity | Team lead | The audit trail: every change to the fleet records, the accounts and the settings, with who made it and what it was before |
 | Settings | Team lead | Six tabs — approval contacts, shift and overtime rules, mail server, SMS gateway, expiry reminders, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
 Tables can be sorted and exported to CSV; reports can be printed. A booked trip prints
@@ -294,6 +295,32 @@ The digest goes through the same outbox as everything else: it appears in the **
 log** under *Expiry reminder*, with its delivery state, and a failed one is retried by
 the same worker.
 
+## Who changed what
+
+Fuel loads, card limits and odometer readings are money and mileage, and until now a
+corrected figure left no trace of who corrected it. Every change now writes a line to
+an audit trail: who, when, which record, and the value on both sides of the change.
+
+**Admin → Activity** (team lead only) shows it, filtered by period, by kind of record,
+by what happened, or by person, and exports to CSV. Opening an entry shows every field
+that moved, before and after.
+
+It covers cars, drivers, payment cards, logbook entries, fuel loads and workshop
+records; car requests through their whole life — submitted, approved, rejected,
+cancelled — and accounts and settings, including role changes and password resets. A
+password, a hash and a mail-server password are never written to it. The label of a
+record is kept on the entry itself, so a car that was deleted last March still reads as
+its registration number rather than an id.
+
+The trail is append-only. There is no endpoint that changes or removes an entry, and
+the table refuses `UPDATE` and `DELETE` outright — see `db/migrations/008_audit.sql`.
+Reloading the sample data clears it along with everything else, which is why a fresh
+demo database starts with an empty Activity page: nobody has changed anything yet.
+
+Changes the machine makes on its own — the demo seeder, the retry worker, the expiry
+reminder — have no person behind them and are not recorded. The message log already
+shows what was sent.
+
 ## Everyday operations
 
 ```bash
@@ -368,7 +395,7 @@ frontend/                     Everything the browser is served
 │       ├── ui.js             Tables, forms, modals, charts, toasts
 │       ├── utils.js          Formatting and date helpers
 │       ├── login.js          Sign-in page logic
-│       └── views/            One file per page, 18 of them
+│       └── views/            One file per page, 19 of them
 ├── Dockerfile                Nginx image (unprivileged, port 8080)
 ├── nginx.conf                Static files, security headers, /api/ proxy
 └── entrypoint/               Sets the data mode from FLEETDESK_MODE
@@ -389,15 +416,17 @@ backend/                      The REST API
 │   ├── mailer.js             Outbox, SMTP and SMS delivery, retries
 │   ├── sms.js                The gateway request, built from the templates in Settings
 │   ├── reminders.js          The standing expiry digest and its schedule
+│   ├── audit.js              The audit trail: one row per change, append-only
+│   ├── context.js            Carries who is calling, for the trail to name
 │   ├── seed.js               Loads the sample fleet and the first account
-│   ├── routes/               auth · users · me · settings · requisitions · reports · collections
+│   ├── routes/               auth · users · me · settings · requisitions · reports · audit · collections
 │   └── shared/               Generated copy of the frontend's shared modules, not in git
 ├── scripts/sync-shared.mjs   Copies those modules out of frontend/ at build time
 ├── test/smoke.js             End-to-end API test (npm run smoke)
 ├── package.json              start · seed · smoke · shared
 └── Dockerfile                API image (Node 22)
 
-db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms · 007 reminders
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms · 007 reminders · 008 audit
 docs/screenshots/             The images in this README
 API_CONTRACT.md               What the backend provides
 LICENSE                       MIT
