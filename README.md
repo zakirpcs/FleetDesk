@@ -29,9 +29,9 @@ on an isolated network.
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
-| Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again. The team lead can delete entries |
+| Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations, expiry reminders), why any of them failed, and a way to send it again. The team lead can delete entries |
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
-| Settings | Team lead | Five tabs — approval contacts, shift and overtime rules, mail server, SMS gateway, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
+| Settings | Team lead | Six tabs — approval contacts, shift and overtime rules, mail server, SMS gateway, expiry reminders, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
 Tables can be sorted and exported to CSV; reports can be printed. A booked trip prints
 a one-page **trip slip** for the driver — the car, where to go, who to collect and who
@@ -276,6 +276,24 @@ paper counts. A date left blank stops nobody — the dashboard is where missing 
 ageing papers get chased. To clear a block, renew the paper and update the date on the
 **Cars** or **Drivers** page.
 
+### The reminder
+
+Nobody has to open the dashboard for a tax token to be noticed. **Settings → Expiry
+reminders** sets a standing email — once a week on a chosen day, or every day, at a
+chosen time — listing what has already expired and what runs out within the next *N*
+days (30 by default). It goes to the team lead, or to whatever addresses are listed
+there, separated by commas.
+
+Nothing is sent on a day when there is nothing to report, and only one digest goes out
+per day however often the API restarts. **Send one now** saves the page and sends
+today's digest to your own address, so you can see what it looks like — that counts as
+the day's reminder. Retired cars and inactive drivers are left out; a driver on leave
+is not, since they will be back.
+
+The digest goes through the same outbox as everything else: it appears in the **Message
+log** under *Expiry reminder*, with its delivery state, and a failed one is retried by
+the same worker.
+
 ## Everyday operations
 
 ```bash
@@ -370,6 +388,7 @@ backend/                      The REST API
 │   ├── settings.js           The settings document, and the secrets kept apart from it
 │   ├── mailer.js             Outbox, SMTP and SMS delivery, retries
 │   ├── sms.js                The gateway request, built from the templates in Settings
+│   ├── reminders.js          The standing expiry digest and its schedule
 │   ├── seed.js               Loads the sample fleet and the first account
 │   ├── routes/               auth · users · me · settings · requisitions · reports · collections
 │   └── shared/               Generated copy of the frontend's shared modules, not in git
@@ -378,7 +397,7 @@ backend/                      The REST API
 ├── package.json              start · seed · smoke · shared
 └── Dockerfile                API image (Node 22)
 
-db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms
+db/migrations/                001 schema · 002 auth · 003 cancellation · 004 secrets · 005 maintenance · 006 sms · 007 reminders
 docs/screenshots/             The images in this README
 API_CONTRACT.md               What the backend provides
 LICENSE                       MIT

@@ -30,6 +30,7 @@ export const TABS = [
   { id: 'overtime', title: 'Overtime rules' },
   { id: 'mail', title: 'Mail server', backend: true },
   { id: 'sms', title: 'SMS gateway', backend: true },
+  { id: 'reminders', title: 'Expiry reminders', backend: true },
   { id: 'fuel', title: 'Fuel prices' },
 ];
 
@@ -100,6 +101,21 @@ export async function render(el, ctx, subPath = '') {
         <span class="muted">Saves first, then sends one message to that number.</span>
       </div>
       <div class="callout mt" id="smsTestResult" hidden></div>`)}
+    ${CONFIG.USE_MOCK ? '' : section('reminders', 'Expiry reminders', 'A standing email about papers and licences that are running out, so a renewal is noticed without anyone opening the dashboard.', `
+      <div class="form-grid">
+        <label class="field full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="rem_enabled" ${s.reminders?.enabled === false ? '' : 'checked'}> Send the expiry reminder. <span class="muted">Turn off to stop it without losing the settings below.</span></label>
+        ${fieldHtml({ name: 'rem_every', label: 'How often', type: 'select', options: [{ value: 'week', label: 'Once a week' }, { value: 'day', label: 'Every day' }] }, s.reminders?.every || 'week')}
+        ${fieldHtml({ name: 'rem_weekday', label: 'Day of the week', type: 'select', options: DAY_NAMES.map((n, i) => ({ value: i, label: n })), hint: 'Ignored when it goes out every day.' }, s.reminders?.weekday ?? 0)}
+        ${fieldHtml({ name: 'rem_sendAt', label: 'Time of day', type: 'time', required: true }, s.reminders?.sendAt || '08:00')}
+        ${fieldHtml({ name: 'rem_days', label: 'Look ahead (days)', type: 'number', min: 1, max: 365, required: true, hint: 'Anything already expired is always listed.' }, s.reminders?.days ?? 30)}
+        ${fieldHtml({ name: 'rem_to', label: 'Send to', full: true, maxlength: 400, placeholder: s.teamLeadEmail || '', hint: 'Several addresses, separated by commas. Leave empty for the team lead.' }, s.reminders?.to || '')}
+      </div>
+      <p class="muted" style="margin:14px 0 0">It covers fitness certificates, tax tokens, insurance and driving licences. A car that is retired, or a driver who is inactive, is left out. Nothing is sent on a day when there is nothing to report.</p>
+      <div class="toolbar mt" style="margin-bottom:0">
+        <button class="btn" id="remTest" type="button">Send one now</button>
+        <span class="muted">Saves first, then sends today's reminder to your own address.</span>
+      </div>
+      <div class="callout mt" id="remTestResult" hidden></div>`)}
     ${section('fuel', 'Fuel prices', 'Prefilled as the rate when a fuel load is recorded. The rate can still be changed on each load.', `<div class="form-grid">
       ${['Octane', 'Petrol', 'Diesel'].map((f) => fieldHtml({ name: `fp_${f}`, label: `${f} (BDT per litre)`, type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices[f])).join('')}
       ${fieldHtml({ name: 'fp_CNG', label: 'CNG (BDT per m³)', type: 'number', min: 0, step: 0.01, required: true }, s.fuelPrices.CNG)}
@@ -159,9 +175,14 @@ export async function render(el, ctx, subPath = '') {
       numberFormat: v.sms_numberFormat, countryCode: v.sms_countryCode, successText: v.sms_successText,
       ...(v.sms_apiKey === '' ? {} : { apiKey: v.sms_apiKey.trim() }),
     };
+    const reminders = CONFIG.USE_MOCK ? undefined : {
+      enabled: Boolean(v.rem_enabled), every: v.rem_every, weekday: Number(v.rem_weekday),
+      sendAt: v.rem_sendAt, days: Number(v.rem_days), to: v.rem_to.trim(),
+    };
     await api.saveSettings({
       ...(smtp ? { smtp } : {}),
       ...(sms ? { sms } : {}),
+      ...(reminders ? { reminders } : {}),
       teamLeadName: v.teamLeadName, teamLeadEmail: v.teamLeadEmail, senderEmail: v.senderEmail, orgName: v.orgName,
       shiftStart: v.shiftStart, shiftEnd: v.shiftEnd, graceMinutes: Number(v.graceMinutes), roundingMinutes: Number(v.roundingMinutes),
       weekendMultiplier: Number(v.weekendMultiplier), weekStartDay: Number(v.weekStartDay),
@@ -191,6 +212,30 @@ export async function render(el, ctx, subPath = '') {
       box.hidden = false;
       e.target.disabled = false;
       e.target.textContent = 'Send a test email';
+    }
+  });
+
+  // The reminder is a real message, so this both shows what it says and proves it sends.
+  el.querySelector('#remTest')?.addEventListener('click', async (e) => {
+    const box = el.querySelector('#remTestResult');
+    box.hidden = true;
+    if (!checkForm(form)) return revealProblem();
+    e.target.disabled = true;
+    e.target.textContent = 'Sending…';
+    try {
+      form.requestSubmit();
+      await new Promise((r) => setTimeout(r, 400));
+      const out = await api.testReminder();
+      const found = [out.expired ? `${out.expired} already expired` : '', out.soon ? `${out.soon} running out within ${out.days} days` : ''].filter(Boolean).join(' and ');
+      box.className = 'callout mt';
+      box.innerHTML = `Reminder sent to <b>${esc(out.to)}</b> — ${esc(found || 'nothing expiring, so it says so')}. <span class="muted">See it in the message log.</span>`;
+    } catch (ex) {
+      box.className = 'callout bad mt';
+      box.textContent = ex.message;
+    } finally {
+      box.hidden = false;
+      e.target.disabled = false;
+      e.target.textContent = 'Send one now';
     }
   });
 

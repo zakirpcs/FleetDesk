@@ -91,3 +91,38 @@ export function cancelEmail(req, driver, car, settings) {
       <p>Nothing else is needed unless the car was being held for it.</p>`,
   };
 }
+
+/**
+ * The standing reminder about papers and licences that have run out or are about to.
+ * It goes to whoever is listed in Settings → Expiry reminders, on its own schedule —
+ * so a tax token coming up for renewal is noticed without anyone opening the app.
+ */
+export function expiryDigestEmail(items, settings, { date, days = 30, to = '' } = {}) {
+  const gone = items.filter((i) => i.days < 0);
+  const soon = items.filter((i) => i.days >= 0);
+  const age = (i) => (i.days < 0
+    ? `expired ${-i.days} day${i.days === -1 ? '' : 's'} ago`
+    : i.days === 0 ? 'expires today' : `in ${i.days} day${i.days === 1 ? '' : 's'}`);
+  const table = (list) => `<table>
+    <tr><td><b>Car or driver</b></td><td><b>Paper</b></td><td><b>Valid to</b></td><td></td></tr>
+    ${list.map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.label)}</td><td><b>${esc(fmtDate(i.expiry))}</b></td><td>${esc(age(i))}</td></tr>`).join('')}
+  </table>`;
+  const count = [
+    gone.length ? `${gone.length} expired` : '',
+    soon.length ? `${soon.length} expiring within ${days} days` : '',
+  ].filter(Boolean).join(', ') || 'nothing expiring';
+  return {
+    to: to || settings.teamLeadEmail,
+    from: settings.senderEmail,
+    subject: `Fleet papers: ${count}`,
+    kind: 'reminder',
+    html: `
+      <p>Papers and licences across the fleet as of ${esc(fmtDate(date))}.</p>
+      ${gone.length ? `<p><b>Already expired — these cars and drivers cannot be booked.</b></p>${table(gone)}` : ''}
+      ${soon.length ? `<p><b>Running out within ${days} days.</b></p>${table(soon)}` : ''}
+      ${items.length ? '' : '<p>Nothing is expired and nothing runs out in the period checked.</p>'}
+      <p>A trip cannot be approved for a date after the paper runs out, so renew these and
+         update the date on the car or driver record in Fleet Desk.</p>
+      <p>Regards,<br>${esc(settings.teamLeadName)}<br>Admin &amp; General Services</p>`,
+  };
+}

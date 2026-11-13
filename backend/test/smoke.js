@@ -314,6 +314,24 @@ async function main() {
   ok('and it is gone from the log', !(await call('GET', '/outbox')).data.some((m) => m.id === doomed));
   ok('deleting it twice → 404', (await call('DELETE', `/outbox/${doomed}`)).status === 404);
 
+  // ---- the expiry reminder: a standing digest, not a reply to anything anyone did
+  const remind = await call('POST', '/settings/reminder-test', { body: { to: 'smoke.reminder@company.local' } });
+  ok('the lead can send the expiry reminder', remind.status === 200 && remind.data?.ok, `${remind.status} ${JSON.stringify(remind.data)}`);
+  ok('it says how much is expiring', Number.isInteger(remind.data?.expired) && Number.isInteger(remind.data?.soon), `${remind.data?.expired} expired, ${remind.data?.soon} soon`);
+  ok('AGS staff cannot send it → 403', (await call('POST', '/settings/reminder-test', { role: 'ags', body: {} })).status === 403);
+  const { data: withDigest } = await call('GET', '/outbox');
+  const digest = withDigest.find((m) => m.kind === 'reminder');
+  ok('it is logged as a reminder, tied to no request', Boolean(digest) && !digest.reqId, digest?.subject);
+  ok('and it names the papers', /Tax token|Fitness certificate|Insurance|Driving licence|Nothing is expired/.test(digest?.html || ''));
+
+  const sched = await call('PUT', '/settings', { body: { reminders: { enabled: true, every: 'week', weekday: 3, sendAt: '07:30', days: 45, to: 'fleet.office@company.local, ags.lead@company.local' } } });
+  ok('the schedule saves', sched.status === 200 && sched.data?.reminders?.days === 45 && sched.data.reminders.weekday === 3, JSON.stringify(sched.data?.reminders));
+  ok('several recipients are kept', sched.data?.reminders?.to === 'fleet.office@company.local, ags.lead@company.local');
+  ok('a bad recipient → 400', (await call('PUT', '/settings', { body: { reminders: { to: 'not-an-address' } } })).status === 400);
+  ok('an unknown schedule → 400', (await call('PUT', '/settings', { body: { reminders: { every: 'fortnight' } } })).status === 400);
+  ok('a window of no days → 400', (await call('PUT', '/settings', { body: { reminders: { days: 0 } } })).status === 400);
+  await call('PUT', '/settings', { body: { reminders: { enabled: true, every: 'week', weekday: 0, sendAt: '08:00', days: 30, to: '' } } });
+
   // ---- reports
   const month = today().slice(0, 7);
   for (const [name, path] of [

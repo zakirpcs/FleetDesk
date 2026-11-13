@@ -96,16 +96,24 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 **requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
 `remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
-**outbox**: `id, sentAt, channel (email | sms), status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html, text, attempts, error`
+**outbox**: `id, sentAt, channel (email | sms), status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation | reminder), reqId, to, cc, from, subject, html, text, attempts, error` — a `reminder` has no `reqId`
 `error` carries the mail server's own words when a send failed, so the Email log can show why.
 
-**settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }, smtp { host, port, encryption (none | starttls | tls), user, fromName }`
+**settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }, smtp { host, port, encryption (none | starttls | tls), user, fromName }, sms { … }, reminders { enabled, every (day | week), weekday, sendAt, days, to }`
+
+The `reminders` block drives the standing expiry digest: a worker in the API checks a
+few times an hour and sends it once on the day it is due, at or after `sendAt`, to the
+addresses in `to`. It reports car papers (`fitnessExpiry`, `taxTokenExpiry`,
+`insuranceExpiry`) and driving licences that have expired, plus those running out
+within `days`. Retired cars and inactive drivers are left out, and nothing is sent on a
+day with nothing to report.
 
 The `smtp` block is returned to the `lead` only, and never carries the password. Reading it adds `hasPassword` (whether one is stored), `source` (`settings`, `environment` or `none` — where the server details in force come from) and `envHost`. Writing accepts `smtp.password`: a value replaces the stored one, `''` clears it, and leaving the field out keeps it. With no `smtp.host` saved, the mail settings the process was started with (`SMTP_*`) are used instead.
 
 | Method | Path | Who | Body | Effect |
 |---|---|---|---|---|
 | POST | `/settings/mail-test` | lead | `to?` (defaults to the caller) | Sends one test message through the mail server as currently configured. 200 with the server's own response, or 400 carrying its error. Not recorded in `outbox` |
+| POST | `/settings/reminder-test` | lead | `to?` (defaults to the caller) | Builds the expiry digest and sends it now, whatever the schedule says. 200 with `{to, status, subject, days, expired, soon}`. Recorded in `outbox` as `kind: reminder`, and it counts as the day's reminder |
 | POST | `/outbox/{id}/retry` | ags, lead | | Tries a `Queued` or `Failed` message again and returns the updated row |
 | DELETE | `/outbox/{id}` | lead | | Removes one message from the log for good. A `Queued` message is then never sent; the request it belongs to is untouched. 204 |
 
@@ -116,6 +124,7 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 - `fuel`: `qty > 0`; the card, if given, must be `Active` → 400
 - After a trip, fuel or maintenance write, raise `cars.odometer` to the new reading if it is higher
 - DELETE on a driver, car or card that is referenced by trips, fuel, maintenance or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
+- `settings.reminders`: `every` is `day` or `week`, `weekday` 0–6, `sendAt` HH:MM, `days` 1–365, `to` a comma-separated list of addresses (empty = the team lead) → 400
 - Approval checks papers against the **trip date**, not today: `cars.fitnessExpiry`, `cars.taxTokenExpiry`, `cars.insuranceExpiry` and `drivers.licenseExpiry` must not fall before `requisitions.requiredDate` → 409 naming each one. An expiry on the trip date itself is still valid, and a date left blank blocks nothing. The rule lives in `frontend/assets/js/papers.js`, mirrored into `backend/src/shared/`
 
 ## Requisition workflow

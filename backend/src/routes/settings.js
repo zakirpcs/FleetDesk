@@ -7,6 +7,7 @@ import { getSettings, putSettings, hasMailPassword, hasSmsApiKey } from '../sett
 import { resolveSmtp, buildTransport } from '../mailer.js';
 import { resolveSms, sendSms, buildRequest } from '../sms.js';
 import { testSms } from '../shared/sms.js';
+import { sendDigest } from '../reminders.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -95,6 +96,27 @@ router.post('/sms-test', requireRole('lead'), async (req, res) => {
     // The secret never comes back, however the gateway wanted it passed.
     request: `${built.method} ${built.url.replace(encodeURIComponent(gateway.apiKey || '\u0000'), '***').replace(gateway.apiKey || '\u0000', '***')}`,
     response: out.response,
+  });
+});
+
+/**
+ * Send the expiry reminder now, to whoever asks for it, whatever the schedule says —
+ * so the team lead can see what the weekly digest will look like. It is a real message:
+ * it goes to the outbox and counts as today's reminder.
+ */
+router.post('/reminder-test', requireRole('lead'), async (req, res) => {
+  const to = String(req.body?.to || req.user.email).trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw new ApiError('Enter a valid email address to send the reminder to');
+  const out = await sendDigest({ force: true, to });
+  if (out.status === 'Failed') throw new ApiError(`The reminder could not be sent — ${out.error}`, 400);
+  res.json({
+    ok: true,
+    to: out.to,
+    status: out.status,
+    subject: out.subject,
+    days: out.days,
+    expired: out.items.filter((i) => i.days < 0).length,
+    soon: out.items.filter((i) => i.days >= 0).length,
   });
 });
 

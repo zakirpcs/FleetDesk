@@ -19,6 +19,7 @@ export async function getSettings() {
   const merged = { ...defaults(), ...(rows[0]?.data || {}) };
   merged.smtp = { ...defaults().smtp, ...(merged.smtp || {}) };
   merged.sms = { ...defaults().sms, ...(merged.sms || {}) };
+  merged.reminders = { ...defaults().reminders, ...(merged.reminders || {}) };
   return merged;
 }
 
@@ -65,6 +66,7 @@ export async function putSettings(patch) {
   const merged = { ...current, ...(patch || {}) };
   if (patch?.smtp) merged.smtp = { ...current.smtp, ...patch.smtp };
   if (patch?.sms) merged.sms = { ...current.sms, ...patch.sms };
+  if (patch?.reminders) merged.reminders = { ...current.reminders, ...patch.reminders };
   const next = validate(merged);
   await pool.query(
     'INSERT INTO settings (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1',
@@ -133,6 +135,28 @@ function validateSms(sms) {
   };
 }
 
+const REMINDER_EVERY = ['day', 'week'];
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * The expiry reminder. `to` may name several people, separated by commas; empty means
+ * the team lead, so a fresh install reminds somebody without being configured first.
+ */
+function validateReminders(r) {
+  const every = String(r.every || 'week').toLowerCase();
+  if (!REMINDER_EVERY.includes(every)) throw new ApiError('Reminders go out either every day or once a week');
+  const to = String(r.to ?? '').split(/[,;\s]+/).filter(Boolean);
+  for (const one of to) if (!EMAIL_RE.test(one)) throw new ApiError(`"${one}" is not a valid email address`);
+  return {
+    enabled: r.enabled !== false,
+    every,
+    weekday: Math.round(num(r.weekday ?? 0, 'Reminder day', { min: 0, max: 6 })),
+    sendAt: time(r.sendAt || '08:00', 'Reminder time'),
+    days: Math.round(num(r.days ?? 30, 'Days ahead', { min: 1, max: 365 })),
+    to: to.join(', '),
+  };
+}
+
 export function validate(s) {
   const out = {
     orgName: str(s.orgName, 'Default start point'),
@@ -154,6 +178,7 @@ export function validate(s) {
     fuelPrices: Object.fromEntries(FUELS.map((f) => [f, num(s.fuelPrices?.[f], `${f} price`, { min: 0, max: 100000 })])),
     smtp: validateSmtp(s.smtp || {}),
     sms: validateSms(s.sms || {}),
+    reminders: validateReminders(s.reminders || {}),
   };
   if (out.shiftEnd <= out.shiftStart) throw new ApiError('Shift must end after it starts.');
   if (out.weekendDays.length >= 7) throw new ApiError('At least one day of the week must be a working day');

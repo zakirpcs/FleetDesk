@@ -59,3 +59,25 @@ export function paperTag(p) {
   const what = p.label.toLowerCase().replace(' certificate', '');
   return p.days < 0 ? `${what} expired` : `${what} expires in ${p.days} day${p.days === 1 ? '' : 's'}`;
 }
+
+/**
+ * Every paper across the fleet that has run out, or will within `days` of `date`,
+ * soonest first. Retired cars and inactive drivers are left out: nobody needs
+ * chasing about a vehicle that will never be on the road again.
+ */
+export function expiringSoon(cars, drivers, date, days = SOON_DAYS) {
+  const out = [];
+  for (const car of cars || []) {
+    if (car.status === 'Retired') continue;
+    for (const p of papersOn(car, CAR_PAPERS, date)) {
+      if (p.days <= days) out.push({ ...p, whose: 'car', name: car.regNo, id: car.id });
+    }
+  }
+  for (const driver of drivers || []) {
+    if (driver.status === 'Inactive') continue;
+    for (const p of papersOn(driver, DRIVER_PAPERS, date)) {
+      if (p.days <= days) out.push({ ...p, whose: 'driver', name: driver.name, id: driver.id });
+    }
+  }
+  return out.sort((a, b) => a.days - b.days);
+}

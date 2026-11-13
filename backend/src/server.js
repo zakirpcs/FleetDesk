@@ -6,6 +6,7 @@ import { pool, waitForDatabase, value } from './db.js';
 import { attachUser, requireUser, blockUntilPasswordChanged } from './auth.js';
 import { startRetryWorker } from './mailer.js';
 import { startSweeper } from './sessions.js';
+import { startReminderWorker } from './reminders.js';
 import { migrate } from './migrate.js';
 import { seedDemoData, ensureAccounts } from './seed.js';
 import authRouter from './routes/auth.js';
@@ -57,6 +58,7 @@ async function start() {
 
   startRetryWorker();
   startSweeper();
+  startReminderWorker();
   const server = app.listen(config.port, () => {
     const counts = ['drivers', 'cars', 'requisitions'];
     Promise.all(counts.map((t) => value(`SELECT count(*)::int FROM ${t}`)))

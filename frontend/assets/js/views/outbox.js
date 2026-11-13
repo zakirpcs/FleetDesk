@@ -8,6 +8,7 @@ const CHANNEL = { email: ['Email', ''], sms: ['SMS', 'Approved'] };
 const KIND = {
   confirmation: ['Confirmation', 'Approved'], rejection: ['Rejection', 'Rejected'],
   notification: ['To team lead', 'Pending'], cancellation: ['Cancellation', 'Cancelled'],
+  reminder: ['Expiry reminder', ''],
 };
 
 export async function render(el, ctx) {
@@ -20,7 +21,7 @@ export async function render(el, ctx) {
     <div class="toolbar">
       <div class="search">${icon.search}<input class="input" id="q" type="search" placeholder="Search recipient, subject or message" aria-label="Search messages"></div>
       <select class="select" id="c" aria-label="Channel"><option value="">Email and SMS</option><option value="email">Email only</option><option value="sms">SMS only</option></select>
-      <select class="select" id="k" aria-label="Type"><option value="">All types</option><option value="confirmation">Confirmations</option><option value="rejection">Rejections</option><option value="notification">To team lead</option><option value="cancellation">Cancellations</option></select>
+      <select class="select" id="k" aria-label="Type"><option value="">All types</option><option value="confirmation">Confirmations</option><option value="rejection">Rejections</option><option value="notification">To team lead</option><option value="cancellation">Cancellations</option><option value="reminder">Expiry reminders</option></select>
     </div>
     <section class="panel" id="tbl"></section>`;
   const filter = () => {

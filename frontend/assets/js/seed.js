@@ -24,6 +24,9 @@ export const DEFAULT_SETTINGS = {
   // Mail server. Empty means "use whatever the environment was started with".
   // The password is never part of this document — see db/migrations/004_secrets.sql.
   smtp: { host: '', port: 587, encryption: 'starttls', user: '', fromName: '' },
+  // The standing reminder about papers and licences that are running out. `to` empty
+  // means the team lead; `every: 'week'` goes out on `weekday` (0 = Sunday).
+  reminders: { enabled: true, every: 'week', weekday: 0, sendAt: '08:00', days: 30, to: '' },
   // SMS gateway. The request is configuration, so any provider's HTTP API fits:
   // {to} {text} {sender} {apiKey} are filled in when a message goes out.
   sms: {
