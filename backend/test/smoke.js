@@ -172,8 +172,28 @@ async function main() {
   const { status: noPick, data: noPickBody } = await call('POST', `/requisitions/${reqn.id}/approve`, { body: {} });
   ok('approve without driver/car → 400', noPick === 400, `${noPick} ${noPickBody?.message}`);
 
+  // Papers have to be valid on the day of the trip, which may be months out: a car
+  // that is legal today is still refused if its cover lapses before then.
+  const shiftDay = (iso, n) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  await call('PATCH', `/cars/${car.id}`, { body: { insuranceExpiry: shiftDay(bookingDate, -1) } });
+  const lapsed = await call('POST', `/requisitions/${reqn.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('cover that lapses before the trip → 409', lapsed.status === 409 && /Insurance/.test(lapsed.data?.message || ''), `${lapsed.status} ${lapsed.data?.message}`);
+
+  await call('PATCH', `/cars/${car.id}`, { body: { insuranceExpiry: addDays(300) } });
+  await call('PATCH', `/drivers/${driver.id}`, { body: { licenseExpiry: shiftDay(bookingDate, -1) } });
+  const noLicence = await call('POST', `/requisitions/${reqn.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
+  ok('a licence that lapses before the trip → 409', noLicence.status === 409 && /Driving licence/.test(noLicence.data?.message || ''), `${noLicence.status} ${noLicence.data?.message}`);
+  ok('the refusal says what to do about it', /Renew it and update the driver record/.test(noLicence.data?.message || ''), noLicence.data?.message);
+
+  await call('PATCH', `/drivers/${driver.id}`, { body: { licenseExpiry: addDays(400) } });
+  await call('PATCH', `/cars/${car.id}`, { body: { fitnessExpiry: '' } });
+  // An expiry date nobody has filled in is not a blocker, and the last valid day counts:
+  // the tax token below runs out on the day of the trip itself, which is still valid.
+  await call('PATCH', `/cars/${car.id}`, { body: { taxTokenExpiry: bookingDate } });
+
   const { status: as, data: approved } = await call('POST', `/requisitions/${reqn.id}/approve`, { body: { driverId: driver.id, carId: car.id, remarks: 'Smoke test approval' } });
   ok('POST /requisitions/:id/approve', as === 200 && approved?.status === 'Approved', JSON.stringify(approved));
+  ok('a blank expiry, and one falling on the day itself, let it through', as === 200);
   ok('reviewedAt is set', Boolean(approved?.reviewedAt));
   const { data: outbox } = await call('GET', '/outbox');
   const forReq = outbox.filter((m) => m.reqId === reqn.id && m.kind === 'confirmation');

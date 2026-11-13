@@ -1,16 +1,15 @@
 // Car inventory.
 import { api, loadAll } from '../api.js';
-import { esc, byId, plate, num, num1, bdt, fmtDate, today, fromISO, thisMonth, sum, unitOf } from '../utils.js';
+import { esc, byId, plate, num, num1, bdt, fmtDate, today, thisMonth, sum, unitOf } from '../utils.js';
 import { DataTable, pill, openForm, openModal, confirmDialog, toast, actions, icon, downloadCsv } from '../ui.js';
+import { papersOn, CAR_PAPERS, SOON_DAYS } from '../papers.js';
 
-const daysTo = (iso) => Math.round((fromISO(iso) - fromISO(today())) / 86400000);
 export function papers(c) {
-  const items = [['Fitness', c.fitnessExpiry], ['Tax token', c.taxTokenExpiry], ['Insurance', c.insuranceExpiry]]
-    .filter(([, d]) => d).map(([k, d]) => [k, daysTo(d)]).sort((a, b) => a[1] - b[1]);
-  const worst = items[0];
+  const worst = papersOn(c, CAR_PAPERS, today())[0];
   if (!worst) return { label: '—', kind: '' };
-  if (worst[1] < 0) return { label: `${worst[0]} expired`, kind: 'Expired' };
-  if (worst[1] <= 30) return { label: `${worst[0]} in ${worst[1]} days`, kind: 'Expiring soon' };
+  const what = worst.label.replace(' certificate', '');
+  if (worst.days < 0) return { label: `${what} expired`, kind: 'Expired' };
+  if (worst.days <= SOON_DAYS) return { label: `${what} in ${worst.days} days`, kind: 'Expiring soon' };
   return { label: 'Up to date', kind: 'Active' };
 }
 

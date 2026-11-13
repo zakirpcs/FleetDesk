@@ -116,13 +116,14 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 - `fuel`: `qty > 0`; the card, if given, must be `Active` → 400
 - After a trip, fuel or maintenance write, raise `cars.odometer` to the new reading if it is higher
 - DELETE on a driver, car or card that is referenced by trips, fuel, maintenance or requisitions → 409 with "Cannot delete: used in N … Mark it inactive instead."
+- Approval checks papers against the **trip date**, not today: `cars.fitnessExpiry`, `cars.taxTokenExpiry`, `cars.insuranceExpiry` and `drivers.licenseExpiry` must not fall before `requisitions.requiredDate` → 409 naming each one. An expiry on the trip date itself is still valid, and a date left blank blocks nothing. The rule lives in `frontend/assets/js/papers.js`, mirrored into `backend/src/shared/`
 
 ## Requisition workflow
 
 | Method | Path | Who | Body | Effect |
 |---|---|---|---|---|
 | POST | `/requisitions` | any | `name, designation, email, requiredDate, startTime, startPoint, destination, reason` | Creates `Pending`, assigns `reqNo`, emails the team lead (`notification`) |
-| POST | `/requisitions/{id}/approve` | lead | `driverId, carId, remarks?` | Must be `Pending`. Rejects with 409 if the driver or car has another `Approved` request on the same date within 3 hours. Sets `Approved`, `reviewedAt/By`, sends the **confirmation** email to the requester (cc team lead) |
+| POST | `/requisitions/{id}/approve` | lead | `driverId, carId, remarks?` | Must be `Pending`. Rejects with 409 if the driver or car has another `Approved` request on the same date within 3 hours, or if the car's papers or the driver's licence will have expired by `requiredDate`. Sets `Approved`, `reviewedAt/By`, sends the **confirmation** email to the requester (cc team lead) |
 | POST | `/requisitions/{id}/reject` | lead | `remarks` (required) | Must be `Pending`. Sets `Rejected`, sends the **rejection** email |
 | POST | `/requisitions/{id}/cancel` | requester, or AGS | `reason` (required once approved) | Allowed while `Pending`, and while `Approved` until the trip's start time passes. Sets `Cancelled` with `cancelledAt/By` and `cancelReason`; a cancelled booking no longer counts towards a clash, so the car and driver are free again. Cancelling an approved trip emails the team lead (`cancellation`, cc the requester). 409 once the trip has started or if it is already cancelled |
 | GET | `/requisitions/conflicts?date=&startTime=&driverId=&carId=&excludeId=` | lead | | Approved requests that would clash |

@@ -17,7 +17,7 @@ on an isolated network.
 |---|---|---|
 | Request a car | Everyone | Requisition form: name, designation, email, date, start point, destination, starting time, reason |
 | My requests | Everyone | The user's requests and their status, the confirmation email they received, the trip slip for a booked trip, and calling off a trip themselves — while it is still waiting, or after approval right up until it starts, which frees the car and driver and tells AGS why |
-| Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged), preview and send the confirmation email, or reject with a reason. A booked trip prints a slip for the driver |
+| Approvals | AGS staff (view), team lead (act) | Review a request, pick car and driver (clashes within 3 hours are flagged, as are papers that run out before the trip), preview and send the confirmation email, or reject with a reason. A booked trip prints a slip for the driver |
 | Dashboard | AGS | Which cars are on trip, available or in maintenance and which drivers are on duty, free or on leave right now; waiting requests; trips booked for the next 3 days; expiring papers and licences; spend against each card's monthly limit; km charts |
 | Cars | AGS | Car inventory, regular driver, fuel card, papers expiry (fitness, tax token, insurance) |
 | Drivers | AGS | Driver inventory, licence expiry, OT rate, this month's duty days and overtime |
@@ -31,7 +31,7 @@ on an isolated network.
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
 | Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again. The team lead can delete entries |
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
-| Settings | Team lead | Four tabs — approval contacts, shift and overtime rules, mail server, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
+| Settings | Team lead | Five tabs — approval contacts, shift and overtime rules, mail server, SMS gateway, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
 Tables can be sorted and exported to CSV; reports can be printed. A booked trip prints
 a one-page **trip slip** for the driver — the car, where to go, who to collect and who
@@ -114,10 +114,12 @@ from `<meta name="fleetdesk-mode">` in `frontend/index.html`, which the containe
 rewrites on start — so the same files serve both the container stack (`api`) and the
 browser-only demo (`mock`).
 
-The email templates, the overtime and running-km rules, and the demo data generator
-are shared: `backend/scripts/sync-shared.mjs` copies `frontend/assets/js/{utils,calc,email,seed}.js`
-into `backend/src/shared/` when the API image is built. The confirmation email the
-team lead previews before approving is rendered by the same module that sends it.
+The email and SMS templates, the overtime and running-km rules, the papers rule and
+the demo data generator are shared: `backend/scripts/sync-shared.mjs` copies
+`frontend/assets/js/{utils,calc,papers,email,sms,seed}.js` into `backend/src/shared/`
+when the API image is built. The confirmation email the team lead previews before
+approving is rendered by the same module that sends it, and the expiry warning shown
+in the approval screen is the same rule the API enforces.
 
 ### Settings
 
@@ -256,6 +258,24 @@ Clearing the gateway address, or turning **Send driver texts** off, holds them i
 log without sending — nothing is lost, and **Send again** picks them up once a gateway
 is in place.
 
+## Papers and licences
+
+A trip booked for next month needs papers that are valid next month. So when the team
+lead approves a request, the car's **fitness certificate**, **tax token** and
+**insurance**, and the driver's **licence**, are checked against the date of the trip
+rather than against today. If any of them runs out before then, the approval is
+refused and the message says which paper, whose, and when it lapsed.
+
+On the review screen the same rule marks the dropdowns — `· tax token expired`,
+`· fitness expires in 15 days` — so a car that cannot be used is obvious before it is
+chosen, and **Approve** is disabled while the problem stands. Rejecting still works,
+and anything expiring within 30 days of the trip is mentioned without blocking.
+
+An expiry date falling on the day of the trip is still valid; that is the last day the
+paper counts. A date left blank stops nobody — the dashboard is where missing and
+ageing papers get chased. To clear a block, renew the paper and update the date on the
+**Cars** or **Drivers** page.
+
 ## Everyday operations
 
 ```bash
@@ -323,6 +343,7 @@ frontend/                     Everything the browser is served
 │       ├── app.js            Router, navigation, roles, who is signed in
 │       ├── api.js            Data layer: the REST backend, or mock data in the browser
 │       ├── calc.js           Overtime and running-km rules
+│       ├── papers.js         Whether papers and licences are valid on a given day
 │       ├── email.js          Email templates (request, confirmation, rejection, cancellation)
 │       ├── sms.js            SMS templates — one text each for a trip and a cancellation
 │       ├── seed.js           Demo data and default settings
@@ -363,8 +384,8 @@ API_CONTRACT.md               What the backend provides
 LICENSE                       MIT
 ```
 
-Two of those deserve a note. `frontend/assets/js/{utils,calc,email,seed}.js` are the
-single definition of the email templates, the overtime rules and the demo data: the
+Two of those deserve a note. `frontend/assets/js/{utils,calc,papers,email,sms,seed}.js`
+are the single definition of the templates, the overtime and papers rules and the demo data: the
 API image copies them into `backend/src/shared/` when it is built, so the two sides
 cannot drift apart — edit them in `frontend/`, never in `backend/src/shared/`. And
 `db/migrations/` is the only place the schema is described; the API applies whatever

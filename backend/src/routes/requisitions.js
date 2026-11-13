@@ -10,6 +10,7 @@ import { getSettings } from '../settings.js';
 import { queue, deliverSoon, smsMessage } from '../mailer.js';
 import { confirmEmail, rejectEmail, newRequestEmail, cancelEmail } from '../shared/email.js';
 import { driverTripSms, driverCancelSms } from '../shared/sms.js';
+import { tripPapers, paperNote } from '../shared/papers.js';
 
 const router = Router();
 const CLASH_MINUTES = 180;   // a driver or car booked within 3 hours counts as a clash
@@ -98,11 +99,25 @@ router.post('/:id/approve', requireRole('lead'), async (req, res) => {
   const { approved, mailIds } = await tx(async (client) => {
     const current = await lockRequisition(client, req.params.id);
     mustBePending(current);
-    const driver = (await client.query('SELECT id, name, mobile, status FROM drivers WHERE id = $1', [driverId])).rows[0];
-    const car = (await client.query('SELECT id, "regNo", make, model FROM cars WHERE id = $1', [carId])).rows[0];
+    const driver = (await client.query('SELECT id, name, mobile, status, "licenseExpiry" FROM drivers WHERE id = $1', [driverId])).rows[0];
+    const car = (await client.query('SELECT id, "regNo", make, model, "fitnessExpiry", "taxTokenExpiry", "insuranceExpiry" FROM cars WHERE id = $1', [carId])).rows[0];
     if (!driver) throw new ApiError('That driver no longer exists. Reload the page and choose again.');
     if (!car) throw new ApiError('That car no longer exists. Reload the page and choose again.');
     if (driver.status !== 'Active') throw new ApiError(`${driver.name} is ${driver.status.toLowerCase()} and cannot be assigned`);
+
+    // Papers have to be valid on the day of the trip, which may be weeks away. A car
+    // without fitness, tax token or insurance — or a driver without a licence — must
+    // not be sent out, so the booking is refused until the record is renewed.
+    const { blocked } = tripPapers(driver, car, current.requiredDate);
+    if (blocked.length) {
+      const whose = [...new Set(blocked.map((p) => p.whose))];
+      const records = whose.length > 1 ? 'the car and driver records' : `the ${whose[0]} record`;
+      throw new ApiError(
+        `${blocked.map((p) => paperNote(p, current.requiredDate)).join(' ')} `
+        + `Renew ${blocked.length > 1 ? 'them' : 'it'} and update ${records}, then approve again.`,
+        409,
+      );
+    }
 
     const clash = await clashes(client, { date: current.requiredDate, startTime: current.startTime, driverId, carId, excludeId: current.id });
     if (clash.length) throw new ApiError(`Driver or car is already booked around that time (${clash.map((c) => c.reqNo).join(', ')})`, 409);

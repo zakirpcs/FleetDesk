@@ -4,6 +4,7 @@ import { esc, byId, plate, today, fmtTime, mins } from '../utils.js';
 import { DataTable, pill, openModal, toast, fieldHtml, icon } from '../ui.js';
 import { confirmEmail } from '../email.js';
 import { shownStatus, when, reqFacts, emailHtml, slipReady, printTripSlip } from './reqshared.js';
+import { tripPapers, paperNote, papersOn, paperTag, CAR_PAPERS, DRIVER_PAPERS, SOON_DAYS } from '../papers.js';
 
 export async function render(el, ctx) {
   const canApprove = ctx.can('approve');
@@ -95,11 +96,17 @@ export async function render(el, ctx) {
     const near = data.requisitions.filter((x) => x.id !== r.id && x.status === 'Approved' && x.requiredDate === r.requiredDate && Math.abs(mins(x.startTime) - mins(r.startTime)) < 180);
     const busyDriver = Object.fromEntries(near.map((x) => [x.driverId, x]));
     const busyCar = Object.fromEntries(near.map((x) => [x.carId, x]));
+    // Papers are judged against the day of the trip, so a car that is legal today can
+    // still be marked here. The soonest to run out is the one worth naming.
+    const paperFlag = (rec, list) => {
+      const worst = papersOn(rec, list, r.requiredDate)[0];
+      return worst && worst.days <= SOON_DAYS ? ` · ${paperTag(worst)}` : '';
+    };
     const carOpts = data.cars.filter((c) => !['Maintenance', 'Retired'].includes(c.status)).map((c) => ({
-      value: c.id, label: `${c.regNo} · ${c.make} ${c.model} (${c.seats} seats)${busyCar[c.id] ? ` · booked ${fmtTime(busyCar[c.id].startTime)}` : ''}`,
+      value: c.id, label: `${c.regNo} · ${c.make} ${c.model} (${c.seats} seats)${busyCar[c.id] ? ` · booked ${fmtTime(busyCar[c.id].startTime)}` : ''}${paperFlag(c, CAR_PAPERS)}`,
     }));
     const drvOpts = data.drivers.filter((d) => d.status === 'Active').map((d) => ({
-      value: d.id, label: `${d.name} · ${d.mobile}${busyDriver[d.id] ? ` · booked ${fmtTime(busyDriver[d.id].startTime)}` : ''}`,
+      value: d.id, label: `${d.name} · ${d.mobile}${busyDriver[d.id] ? ` · booked ${fmtTime(busyDriver[d.id].startTime)}` : ''}${paperFlag(d, DRIVER_PAPERS)}`,
     }));
 
     openModal({
@@ -112,6 +119,7 @@ export async function render(el, ctx) {
             ${fieldHtml({ name: 'driverId', label: 'Driver', type: 'select', required: true, placeholder: 'Choose a driver', options: drvOpts, hint: 'Picking a car selects its regular driver. You can change it.' })}
             ${fieldHtml({ name: 'remarks', label: 'Note to requester or reason for rejection', type: 'textarea', maxlength: 300, placeholder: 'Optional when approving. Required when rejecting.' })}
           </form>
+          <div class="callout bad mt" id="papers" hidden></div>
           <div class="callout warn mt" id="clash" hidden></div>
           <div class="callout bad mt" id="err" hidden></div>
         </div>
@@ -126,6 +134,7 @@ export async function render(el, ctx) {
       onMount(m, close) {
         const f = m.querySelector('#assign');
         const err = m.querySelector('#err'), clash = m.querySelector('#clash');
+        const paperBox = m.querySelector('#papers'), approve = m.querySelector('#approve');
         const upd = () => {
           const car = data.c[f.carId.value], drv = data.d[f.driverId.value];
           const preview = confirmEmail({ ...r, remarks: f.remarks.value.trim() }, drv, car, data.settings);
@@ -134,6 +143,16 @@ export async function render(el, ctx) {
           const msgs = [];
           if (busyCar[f.carId.value]) msgs.push(`This car is booked for ${busyCar[f.carId.value].reqNo} at ${fmtTime(busyCar[f.carId.value].startTime)}.`);
           if (busyDriver[f.driverId.value]) msgs.push(`This driver is booked for ${busyDriver[f.driverId.value].reqNo} at ${fmtTime(busyDriver[f.driverId.value].startTime)}.`);
+
+          // Papers that will have run out by the day of the trip: the API refuses these,
+          // so say so here rather than letting the lead press Approve and be told off.
+          const { blocked, soon } = tripPapers(drv, car, r.requiredDate);
+          paperBox.textContent = blocked.length
+            ? `${blocked.map((p) => paperNote(p, r.requiredDate)).join(' ')} This trip cannot be booked until the record is renewed.`
+            : '';
+          paperBox.hidden = !blocked.length;
+          approve.disabled = blocked.length > 0;
+          for (const p of soon) msgs.push(paperNote(p, r.requiredDate));
           clash.textContent = msgs.join(' '); clash.hidden = !msgs.length;
         };
         f.carId.addEventListener('change', () => { const c = data.c[f.carId.value]; if (c?.driverId && data.d[c.driverId]?.status === 'Active') f.driverId.value = c.driverId; upd(); });
