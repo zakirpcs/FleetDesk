@@ -62,6 +62,15 @@ router.post('/outbox/:id/retry', async (req, res) => {
   res.json(after);
 });
 
+// Housekeeping on the message log. The log is the record of what the system sent, so
+// clearing an entry is the team lead's call and cannot be undone. A message still
+// queued is simply never sent.
+router.delete('/outbox/:id', async (req, res) => {
+  if (req.user.role !== 'lead') throw new ApiError('Only the AGS team lead can delete from the message log.', 403);
+  await store.remove('outbox', req.params.id);
+  res.status(204).end();
+});
+
 router.post('/:collection', async (req, res) => {
   writable(req.collection, req.user);
   res.status(201).json(await store.create(req.collection, req.body));

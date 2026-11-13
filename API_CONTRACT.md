@@ -71,7 +71,7 @@ For each collection `drivers`, `cars`, `cards`, `trips`, `fuel`, `maintenance`:
 | PATCH | `/{collection}/{id}` | changed fields | updated object |
 | DELETE | `/{collection}/{id}` | | 204 |
 
-`requisitions` and `outbox` support GET only; they change through the actions below.
+`requisitions` and `outbox` are not created or changed directly; they move through the actions below. The one exception is housekeeping: the team lead can `DELETE /outbox/{id}` to clear a message from the log.
 
 The views compute reports on the client from full lists. When data grows, add query filters (`?from=&to=&carId=`) and move to the report endpoints at the end of this file, which the backend already serves.
 
@@ -96,7 +96,7 @@ Never accept or store a full card number (PAN), CVV or PIN. Reject anything in `
 **requisitions**: `id, reqNo (CR-YYMM-NNN, sequence per month), name, designation, email, requiredDate, startTime, startPoint, destination, reason, status (Pending | Approved | Rejected | Cancelled), createdAt, reviewedAt, reviewedBy, driverId, carId, remarks, cancelledAt, cancelledBy, cancelReason`
 `remarks` belongs to the team lead (their note, or why they rejected it); a cancellation keeps its own `cancelReason` so neither overwrites the other.
 
-**outbox**: `id, sentAt, status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html, attempts, error`
+**outbox**: `id, sentAt, channel (email | sms), status (Queued | Sent | Failed), kind (notification | confirmation | rejection | cancellation), reqId, to, cc, from, subject, html, text, attempts, error`
 `error` carries the mail server's own words when a send failed, so the Email log can show why.
 
 **settings** (single object, `GET/PUT /settings`, `lead` only for PUT): `orgName, teamLeadName, teamLeadEmail, senderEmail, shiftStart, shiftEnd, graceMinutes, roundingMinutes, weekendDays [0–6, 0 = Sunday], weekStartDay, weekendMultiplier, holidays [dates], fuelPrices { Octane, Petrol, Diesel, CNG }, smtp { host, port, encryption (none | starttls | tls), user, fromName }`
@@ -107,6 +107,7 @@ The `smtp` block is returned to the `lead` only, and never carries the password.
 |---|---|---|---|---|
 | POST | `/settings/mail-test` | lead | `to?` (defaults to the caller) | Sends one test message through the mail server as currently configured. 200 with the server's own response, or 400 carrying its error. Not recorded in `outbox` |
 | POST | `/outbox/{id}/retry` | ags, lead | | Tries a `Queued` or `Failed` message again and returns the updated row |
+| DELETE | `/outbox/{id}` | lead | | Removes one message from the log for good. A `Queued` message is then never sent; the request it belongs to is untouched. 204 |
 
 ## Validation the server must enforce
 

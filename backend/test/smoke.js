@@ -176,9 +176,15 @@ async function main() {
   ok('POST /requisitions/:id/approve', as === 200 && approved?.status === 'Approved', JSON.stringify(approved));
   ok('reviewedAt is set', Boolean(approved?.reviewedAt));
   const { data: outbox } = await call('GET', '/outbox');
-  const confirmation = outbox.find((m) => m.reqId === reqn.id && m.kind === 'confirmation');
+  const forReq = outbox.filter((m) => m.reqId === reqn.id && m.kind === 'confirmation');
+  const confirmation = forReq.find((m) => (m.channel || 'email') === 'email');
   ok('confirmation email written to the outbox', Boolean(confirmation), JSON.stringify(outbox.slice(0, 1)));
   ok('email carries the driver and car details', confirmation?.html?.includes(car.regNo) && confirmation?.html?.includes('Smoke Test Driver'));
+  // The driver gets a text as well, since this one has a mobile number on file.
+  const driverSms = forReq.find((m) => m.channel === 'sms');
+  ok('the driver is texted too', Boolean(driverSms) && driverSms.to === '01700-000000', JSON.stringify(driverSms?.to));
+  ok('the text names the request, the car and where to go', [approved.reqNo, car.regNo.slice(-7), approved.destination].every((bit) => driverSms?.text?.includes(bit)), driverSms?.text);
+  ok('and it fits in one SMS', driverSms?.text?.length <= 160, `${driverSms?.text?.length} characters`);
   const { status: again } = await call('POST', `/requisitions/${reqn.id}/approve`, { body: { driverId: driver.id, carId: car.id } });
   ok('approving twice → 409', again === 409, String(again));
 
@@ -220,8 +226,10 @@ async function main() {
   ok('the cancellation is recorded', afterCancel?.cancelReason === 'Meeting moved to next week' && afterCancel.cancelledAt && afterCancel.cancelledBy,
     JSON.stringify({ by: afterCancel?.cancelledBy, why: afterCancel?.cancelReason }));
   const { data: outboxAfter } = await call('GET', '/outbox');
-  const notice = outboxAfter.find((m) => m.reqId === own.id && m.kind === 'cancellation');
+  const calledOff = outboxAfter.filter((m) => m.reqId === own.id && m.kind === 'cancellation');
+  const notice = calledOff.find((m) => (m.channel || 'email') === 'email');
   ok('AGS is emailed about it', notice?.to === 'ags.lead@company.local' && notice.html.includes('Meeting moved to next week'), JSON.stringify(notice?.subject));
+  ok('and the driver is told the trip is off', calledOff.some((m) => m.channel === 'sms' && /CANCELLED/.test(m.text)), JSON.stringify(calledOff.map((m) => m.channel)));
   const { data: freed } = await call('GET', `/requisitions/conflicts?date=${bookingDate}&startTime=18:00&driverId=${driver.id}&carId=${car.id}`);
   ok('the car and driver are free again', Array.isArray(freed) && freed.length === 0, JSON.stringify(freed.map((x) => x.reqNo)));
 
@@ -272,10 +280,19 @@ async function main() {
   ok('a test through the configured relay is delivered', liveTest.status === 200 && liveTest.data?.ok, `${liveTest.status} ${liveTest.data?.message || liveTest.data?.response}`);
 
   const { data: mailLog } = await call('GET', '/outbox');
-  ok('the email log carries the delivery detail', mailLog[0] && 'error' in mailLog[0] && 'attempts' in mailLog[0], JSON.stringify(Object.keys(mailLog[0] || {})));
-  const resent = await call('POST', `/outbox/${mailLog[0].id}/retry`);
+  const anEmail = mailLog.find((m) => (m.channel || 'email') === 'email');
+  ok('the email log carries the delivery detail', anEmail && 'error' in anEmail && 'attempts' in anEmail, JSON.stringify(Object.keys(mailLog[0] || {})));
+  const resent = await call('POST', `/outbox/${anEmail.id}/retry`);
   ok('a message can be sent again', resent.status === 200 && resent.data?.status === 'Sent', `${resent.status} ${resent.data?.status}`);
-  ok('employees cannot resend → 403', (await call('POST', `/outbox/${mailLog[0].id}/retry`, { role: 'employee' })).status === 403);
+  ok('employees cannot resend → 403', (await call('POST', `/outbox/${anEmail.id}/retry`, { role: 'employee' })).status === 403);
+
+  // Clearing an entry from the log is the lead's housekeeping, and cannot be undone.
+  const doomed = anEmail.id;
+  ok('AGS staff cannot delete from the log → 403', (await call('DELETE', `/outbox/${doomed}`, { role: 'ags' })).status === 403);
+  ok('employees cannot delete from the log → 403', (await call('DELETE', `/outbox/${doomed}`, { role: 'employee' })).status === 403);
+  ok('the lead can delete a message → 204', (await call('DELETE', `/outbox/${doomed}`)).status === 204);
+  ok('and it is gone from the log', !(await call('GET', '/outbox')).data.some((m) => m.id === doomed));
+  ok('deleting it twice → 404', (await call('DELETE', `/outbox/${doomed}`)).status === 404);
 
   // ---- reports
   const month = today().slice(0, 7);

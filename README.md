@@ -29,7 +29,7 @@ on an isolated network.
 | Fuel consumption | AGS | Fuel and cost per car per month, km/L, cost per km, and a flag when efficiency drops |
 | Driver overtime | AGS | Overtime per driver per month with a day-by-day breakdown |
 | Assignment history | AGS | Which driver took which car over any period — days driven and km from the logbook, trips booked through approved requests, and whether each pairing is the car's regular driver or cover |
-| Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again |
+| Message log | AGS | Every email and SMS sent (to the team lead, confirmations, rejections, cancellations), why any of them failed, and a way to send it again. The team lead can delete entries |
 | People and access | Team lead | Who can sign in, their role, and resetting a password |
 | Settings | Team lead | Four tabs — approval contacts, shift and overtime rules, mail server, fuel prices. Each has its own address (`#settings/mail`), and one Save button covers the lot |
 
@@ -194,7 +194,9 @@ Common relays:
 Every message is written to the `outbox` table before it is sent, so nothing is lost
 when the relay is down: the **Message log** shows the delivery state with the reason a
 message failed, offers **Send again**, and a background worker retries failures on its
-own every `MAIL_RETRY_SECONDS`.
+own every `MAIL_RETRY_SECONDS`. The team lead can also delete an entry from the log —
+the only way anything leaves it. Deleting a message that is still queued means it is
+never sent; the request it belongs to is untouched.
 
 ## SMS to drivers
 
